@@ -51,9 +51,9 @@ class Decoder(keras.Model):
                                         activation=None)
 
     def call(self, inputs, **kwargs):
+        # x - [batch_size, 1]
         x, initial_state = inputs
         x = self.embedding(x)
-        x = tf.expand_dims(x, axis=1)
 
         outputs, h, c = self.lstm(x, initial_state=initial_state)
         outputs = tf.reshape(outputs, shape=(x.shape[0], outputs.shape[2]))

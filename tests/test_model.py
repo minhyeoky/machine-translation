@@ -22,7 +22,7 @@ class MyTestCase(unittest.TestCase):
         decoder = Decoder(vocab_size=self.vocab_size, embedding_size=self.embedding_size, n_units=self.n_units)
         initial_state = h, c
         for t in range(1, len(outputs)):
-            output, h, c = decoder((self.test_data[:, t], initial_state))
+            output, h, c = decoder((tf.expand_dims(self.test_data[:, t], 1), initial_state))
             initial_state = h, c
 
             self.assertEqual(output.shape, (self.batch_size, self.vocab_size))

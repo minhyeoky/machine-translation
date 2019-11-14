@@ -26,7 +26,7 @@ class Data(NamedTuple):
 class DataLoader(DataLoaderBase):
     def __init__(self, data_path, n_data=None, test_size=0.1):
         super(DataLoader, self).__init__()
-
+        logger.info('Initiating Dataloader')
         self.preprocessor = NamedTuple('Preprocessor', [('kor', KorPreprocessor),
                                                         ('eng', EngPreprocessor)])
         self.preprocessor.kor = KorPreprocessor()
@@ -75,6 +75,7 @@ class DataLoader(DataLoaderBase):
         return sequences
 
     def _load_data(self):
+        logger.info(f'Loading data from {self.data_path}')
         data = pd.read_excel(self.data_path, sheet_name='Sheet1')
         logger.info(data.head())
 
