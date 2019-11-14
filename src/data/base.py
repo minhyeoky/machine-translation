@@ -11,5 +11,24 @@ class DataLoaderBase(metaclass=ABCMeta):
         pass
 
     @abstractmethod
-    def data_generator(self):
+    def train_data_generator(self):
+        pass
+
+    @abstractmethod
+    def test_data_generator(self):
+        pass
+
+    @abstractmethod
+    def _load_data(self):
+        pass
+
+
+class TokenizerBase(metaclass=ABCMeta):
+
+    @abstractmethod
+    def __init__(self):
+        pass
+
+    @abstractmethod
+    def tokenize(self):
         pass
