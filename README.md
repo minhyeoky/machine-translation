@@ -1,5 +1,21 @@
-# My DeepLearning Template
+# Neural Machine Translation
 
+## Objectives
+1. Make flexible deeplearning project template 
+2. Compare performances of different models & methods
+3. Understand and implement attention perfectly
+4. ...
+
+## Models
+- [x] Seq2seq
+- [ ] Attention
+- [ ] Transformer
+## Methods
+- [ ] korean pos tagger
+    - [x] Mecab
+    - [ ] Khaiii
+- [ ] ...
+    
 ## Principles
 1. Well defined entry point for train & inference
 2. From raw data to trained model
@@ -8,34 +24,30 @@
 5. Use english
 6. Test wherever possible
 
-## 
+## Directory structure
 ```
 📦nmt
- ┣ 📂config -- configuration files for train and inference
- ┃ ┗ 📂nmt
- ┣ 📂data --   
- ┃ ┣ 📂input -- raw data for train
- ┃ ┗ 📂output -- trained models and tensorboard log files
- ┣ 📂src -- 
- ┃ ┣ 📂log -- visualization, 
- ┃ ┃ ┣ 📜__init__.py
- ┃ ┃ ┗ 📜logger.py
+ ┣ 📂config
+ ┣ 📂data
+ ┃ ┣ 📂input
+ ┃ ┗ 📂output
+ ┣ 📂script
+ ┣ 📂src
+ ┃ ┣ 📂data
+ ┃ ┣ 📂log
  ┃ ┣ 📂model
- ┃ ┃ ┣ 📜__init__.py
- ┃ ┃ ┣ 📜loss.py
- ┃ ┃ ┣ 📜metric.py
- ┃ ┃ ┗ 📜model.py
- ┃ ┣ 📂script
+ ┃ ┣ 📂preprocessor
  ┃ ┣ 📜__init__.py
- ┃ ┣ 📜data_loader.py -- 
- ┃ ┣ 📜test.py -- entry point for inference
- ┃ ┣ 📜train.py -- entry point for train
- ┃ ┗ 📜util.py -- utility functions
+ ┃ ┣ 📜config.py
+ ┃ ┗ 📜utils.py
+ ┣ 📂tests
  ┣ 📜.gitignore
  ┣ 📜README.md
- ┗ 📜requirements.txt
+ ┣ 📜requirements.txt
+ ┣ 📜run.sh
+ ┗ 📜train.py
 ```
 
-## Inspired from
-- [pytorch-template](https://github.com/victoresque/pytorch-template/blob/master/README.md)
-- [reddit](https://www.reddit.com/r/MachineLearning/comments/9xwwpd/d_how_do_you_structure_your_pytorch_deep_learning/)
+## References
+- [Tensorflow-tutorials](https://www.tensorflow.org/tutorials/text/nmt_with_attention)
+- [huggingface](https://github.com/huggingface/transformers)
