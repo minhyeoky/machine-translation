@@ -8,7 +8,7 @@ from .base import DataLoaderBase
 from ..preprocessor.korean import KorPreprocessor
 from ..preprocessor.english import EngPreprocessor
 
-logger = logging.getLogger(__name__)
+logger = tf.get_logger()
 keras = tf.keras
 
 
@@ -26,7 +26,7 @@ class Data(NamedTuple):
 class DataLoader(DataLoaderBase):
     def __init__(self, data_path, n_data=None, test_size=0.1):
         super(DataLoader, self).__init__()
-        logger.info('Initiating Dataloader')
+        logger.info('Initializing Dataloader')
         self.preprocessor = NamedTuple('Preprocessor', [('kor', KorPreprocessor),
                                                         ('eng', EngPreprocessor)])
         self.preprocessor.kor = KorPreprocessor()
@@ -62,16 +62,19 @@ class DataLoader(DataLoaderBase):
             yield e, k
 
     def test_data_generator(self):
-        en, ko = self.data_test.eng, self.data_test.eng
+        en, ko = self.data_test.eng, self.data_test.kor
         for e, k in zip(en, ko):
             yield e, k
 
     @staticmethod
-    def _tokenize(texts, tokenizer):
-        tokenizer.fit_on_texts(texts)
+    def _tokenize(texts, tokenizer, fit=True):
+        if fit:
+            tokenizer.fit_on_texts(texts)
         sequences = tokenizer.texts_to_sequences(texts)
         sequences = tf.keras.preprocessing.sequence.pad_sequences(sequences,
-                                                                  padding='post')
+                                                                  padding='post',
+                                                                  truncating='post',
+                                                                  value=0)  # padding value
         return sequences
 
     def _load_data(self):
@@ -102,8 +105,8 @@ class DataLoader(DataLoaderBase):
         en_train = self._tokenize(en_train, self.tokenizer.eng)
         ko_train = self._tokenize(ko_train, self.tokenizer.kor)
 
-        en_test = self.tokenizer.eng.texts_to_sequences(en_test)
-        ko_test = self.tokenizer.kor.texts_to_sequences(ko_test)
+        en_test = self._tokenize(en_test, self.tokenizer.eng, fit=False)
+        ko_test = self._tokenize(ko_test, self.tokenizer.kor, fit=False)
 
         self.data_train = Data(kor=ko_train, eng=en_train)
         self.data_test = Data(kor=ko_test, eng=en_test)
