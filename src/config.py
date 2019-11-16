@@ -11,9 +11,12 @@ class Config:
         # Meta
         self.name = kwargs.get('name', None)
         self.display_step = kwargs.get('display_step', 10)
+        self.n_data = kwargs.get('n_data', None)
+        self.test_size = kwargs.get('test_size', 0.1)
 
         # Hyperparamters
         self.batch_size = kwargs.get('batch_size', None)
+        self.inference_size = kwargs.get('inference_size', 2)
         self.epochs = kwargs.get('epochs', None)
         self.lr = kwargs.get('lr', None)
         self.buffer_size = kwargs.get('buffer_size', self.batch_size * 100)
