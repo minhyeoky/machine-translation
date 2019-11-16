@@ -28,7 +28,9 @@ class Encoder(keras.Model):
 
         if training:
             outputs, h, c = self.lstm(x, initial_state=initial_state)
-
+            return outputs, h, c
+        else:
+            outputs, h, c = self.lstm(x, initial_state=initial_state)
             return outputs, h, c
 
     def initial_state(self, batch_size):

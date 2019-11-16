@@ -1,0 +1,7 @@
+{
+  "name": "test",
+  "batch_size": 2,
+  "epochs": 100,
+  "lr": 0.001,
+  "n_data": 20
+}
