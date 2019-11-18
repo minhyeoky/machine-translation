@@ -1,7 +1,47 @@
 {
   "name": "test",
-  "batch_size": 2,
-  "epochs": 100,
-  "lr": 0.001,
-  "n_data": 20
+  "meta": {
+    "logdir": "data/output/logs",
+    "ckpt_dir": "data/output/ckpt",
+    "save_step": 10,
+    "display_step": 10,
+    "log_level": "DEBUG",
+    "ckpt_max_keep": 10
+  },
+  "train": {
+    "epochs": 100,
+    "data_loader": {
+      "batch_size": 2,
+      "args": {
+        "n_data": 20,
+        "validation_split": 0.1
+      }
+    },
+    "optimizer": {
+      "type": 0,
+      "args": {
+        "lr": 0.001,
+        "beta_1": 0.9
+      }
+    },
+    "model": {
+      "encoder": {
+        "type": null,
+        "args": {
+          "embedding_size": 256,
+          "n_units": 256
+        }
+      },
+      "decoder": {
+        "type": null,
+        "args": {
+          "embedding_size": 256,
+          "n_units": 256
+        }
+      }
+    }
+  },
+  "inference": {
+    "inference_size": 2
+  }
 }

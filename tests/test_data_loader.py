@@ -14,7 +14,7 @@ class TestDataLoader(unittest.TestCase):
         self.test_size = 0.5
         self.batch_size = 2
         self.data_loader = DataLoader('./data/input/aihub_kor-eng/1.구어체.xlsx', n_data=self.n_data,
-                                      test_size=self.test_size)
+                                      validation_split=self.test_size)
 
     def test_len(self):
         self.assertEqual(len(self.data_loader.data_train), self.n_data * (1 - self.test_size))

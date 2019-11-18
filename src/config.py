@@ -7,24 +7,38 @@ logger = logging.getLogger(__name__)
 class Config:
     def __init__(self, **kwargs):
         logger.info('Loading Config')
+        # Name
+        self.name = kwargs.get('name', None)
 
         # Meta
-        self.name = kwargs.get('name', None)
-        self.display_step = kwargs.get('display_step', 10)
-        self.n_data = kwargs.get('n_data', None)
-        self.test_size = kwargs.get('test_size', 0.1)
-        self.logdir = kwargs.get('logdir', None)
-        self.save_step = kwargs.get('save_step', None)
-        self.save_dir = kwargs.get('save_dir', None)
-        # Hyperparamters
-        self.batch_size = kwargs.get('batch_size', None)
-        self.inference_size = kwargs.get('inference_size', 2)
-        self.epochs = kwargs.get('epochs', None)
-        self.lr = kwargs.get('lr', None)
-        self.buffer_size = kwargs.get('buffer_size', self.batch_size * 100)
-        self.beta_1 = kwargs.get('beta_1', 0.9)
-        self.embedding_size = kwargs.get('embedding_size', 256)
-        self.n_units = kwargs.get('n_units', 256)
+        self.meta: dict = kwargs['meta']
+        self.display_step = self.meta.get('display_step', None)
+        self.save_step = self.meta.get('save_step', None)
+        self.ckpt_dir = self.meta.get('ckpt_dir', None)
+        self.ckpt_max_keep = self.meta.get('ckpt_max_keep', None)
+        self.logdir = self.meta.get('logdir', None)
+        self.log_level = self.meta.get('log_level', None)
+
+        # Train
+        self.train: dict = kwargs['train']
+        self.batch_size = self.train.get('batch_size', None)
+        self.epochs = self.train.get('epochs', None)
+        # Train - data_loader
+        self.data_loader: dict = self.train['data_loader']
+        self.batch_size = self.data_loader.get('batch_size', None)
+        self.buffer_size = self.data_loader.get('buffer_size', self.batch_size * 10)
+
+        # Train - optimizer
+        self.optimizer = self.train.get('optimizer', None)
+
+        # Train - model
+        self.model = self.train.get('model', None)
+        self.encoder = self.model.get('encoder', None)
+        self.decoder = self.model.get('decoder', None)
+
+        # Inference
+        self.inference: dict = kwargs['inference']
+        self.inference_size = self.inference.get('inference_size', None)
 
     @classmethod
     def from_dict(cls, config_dict):

@@ -1,20 +1,19 @@
+"""
+Neural machine translation english to korean
+"""
 import argparse
 from time import time
-
 import tensorflow as tf
-import logging
 
 from src.model.model import Encoder, Decoder
 from src.data.data_loader import DataLoader
 from src.config import Config
 
-"""
-Neural machine translation english to korean
-"""
+PREFETCH = tf.data.experimental.AUTOTUNE
+
 keras = tf.keras
 Adam = keras.optimizers.Adam
 logger = tf.get_logger()
-logger.setLevel('DEBUG')
 
 # Argument
 logger.info('Parsing arguments')
@@ -28,16 +27,16 @@ config_json = args.config_json
 
 # Config
 config = Config.from_json_file(config_json)
+logger.setLevel(config.log_level)
 
 # DataLoader
-data_loader = DataLoader(data_path, n_data=config.n_data, test_size=config.test_size)
+data_loader = DataLoader(data_path, **config.data_loader['args'])
 dataset_train = tf.data.Dataset.from_generator(data_loader.train_data_generator,
                                                output_types=(tf.int32, tf.int32)).shuffle(
-    config.buffer_size).batch(config.batch_size, drop_remainder=True).prefetch(tf.data.experimental.AUTOTUNE)
+    config.buffer_size).batch(config.batch_size, drop_remainder=True).prefetch(PREFETCH)
 dataset_test = tf.data.Dataset.from_generator(data_loader.test_data_generator,
                                               output_types=(tf.int32, tf.int32)).shuffle(
-    config.buffer_size).batch(config.inference_size, drop_remainder=True).repeat().prefetch(
-    tf.data.experimental.AUTOTUNE)
+    config.buffer_size).batch(config.inference_size, drop_remainder=True).repeat().prefetch(PREFETCH)
 dataset_test_iterator = iter(dataset_test)
 
 # Tokenizer
@@ -49,32 +48,35 @@ vocab_size_ko = len(tokenizer_ko.word_index) + 1
 vocab_size_en = len(tokenizer_en.word_index) + 1
 
 # Model
-encoder = Encoder(vocab_size_en, embedding_size=config.embedding_size, n_units=config.n_units)
-decoder = Decoder(vocab_size_ko, embedding_size=config.embedding_size, n_units=config.n_units)
+encoder = Encoder(vocab_size_en, **config.encoder['args'])
+decoder = Decoder(vocab_size_ko, **config.decoder['args'])
 
 # Optimizer
-optimizer = Adam(config.lr, config.beta_1)
+optimizer = Adam(**config.optimizer['args'])
 
 
-# @tf.function
+@tf.function
 def train_step(en_train, ko_train):
     loss = 0
+    train_batch_size = config.batch_size
     mask = tf.zeros_like(ko_train, dtype=tf.bool)
     mask |= tf.cast(ko_train, tf.bool)
 
     with tf.GradientTape() as tape:
-        initial_state = encoder.initial_state(config.batch_size)
-        outputs_encoder, h_encoder, c_encoder = encoder((en_train, initial_state))
+        initial_state = encoder.initial_state(train_batch_size)
+        inputs_encoder = (en_train, initial_state)
+        outputs_encoder, h_encoder, c_encoder = encoder(inputs_encoder)
 
         # hidden representation of en_train
         h_decoder, c_decoder = h_encoder, c_encoder
 
         # decoder's input 0 start from <start> token
-        input_decoder = tf.expand_dims([tokenizer_en.word_index['<start>']] * config.batch_size, 1)  # [batch_size, 1]
+        input_decoder = tf.expand_dims([tokenizer_en.word_index['<start>']] * train_batch_size, 1)  # [batch_size, 1]
 
         for time_step in range(1, outputs_encoder.shape[1]):
             initial_state = (h_decoder, c_decoder)
-            logits, h_decoder, c_decoder = decoder((input_decoder, initial_state))
+            inputs_decoder = (input_decoder, initial_state)
+            logits, h_decoder, c_decoder = decoder(inputs_decoder)
 
             # logits - decoder's prediction at timestep t-1,
             # they are corresponding to encoder's input at timestep t
@@ -96,13 +98,13 @@ def train_step(en_train, ko_train):
     return loss
 
 
-# @tf.function
+@tf.function
 def inference(inference_data):
     inference_size = inference_data.shape[0]
     initial_state = encoder.initial_state(inference_size)
-    inputs = inference_data, initial_state
+    inputs_inference = (inference_data, initial_state)
 
-    outputs, h_encoder, c_encoder = encoder(inputs, training=False)
+    outputs, h_encoder, c_encoder = encoder(inputs_inference, training=False)
 
     h_decoder, c_decoder = h_encoder, c_encoder
 
@@ -110,7 +112,7 @@ def inference(inference_data):
 
     max_timestep = outputs.shape[1]
 
-    test_inferenced = tf.zeros((inference_size, 0), dtype=tf.int32)
+    ret = tf.zeros((inference_size, 0), dtype=tf.int32)
 
     for timestep in range(max_timestep):
         inputs_decoder = input_decoder, (h_decoder, c_decoder)
@@ -122,17 +124,9 @@ def inference(inference_data):
         preds = tf.argmax(probs, axis=-1)
         preds = tf.expand_dims(preds, 1)
         preds = tf.cast(preds, dtype=tf.int32)
-        test_inferenced = tf.concat([test_inferenced, preds], axis=-1)
+        ret = tf.concat([ret, preds], axis=-1)
         input_decoder = preds
-
-        # for b in range(inference_size):
-        #     test_inferenced[b].append(preds[b])
-        #     ko_index_word_preds_b_ = tokenizer_ko.index_word[preds[b]]
-        #     if ko_index_word_preds_b_ == tokenizer_ko.oov_token:
-        #         continue
-        #     else:
-        #         test_inferenced[b].append(ko_index_word_preds_b_)
-    return test_inferenced
+    return ret
 
 
 # Tensorboard
@@ -143,7 +137,7 @@ Checkpoint = tf.train.Checkpoint
 ckpt = Checkpoint(step=tf.Variable(initial_value=0, dtype=tf.int64), optimizer=optimizer,
                   encoder=encoder, decoder=decoder)
 
-ckpt_manager = tf.train.CheckpointManager(checkpoint=ckpt, directory=config.save_dir, max_to_keep=10)
+ckpt_manager = tf.train.CheckpointManager(checkpoint=ckpt, directory=config.ckpt_dir, max_to_keep=config.ckpt_max_keep)
 
 # Load checkpoint if exists
 latest_checkpoint = ckpt_manager.latest_checkpoint

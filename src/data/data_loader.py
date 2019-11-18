@@ -24,7 +24,7 @@ class Data(NamedTuple):
 
 
 class DataLoader(DataLoaderBase):
-    def __init__(self, data_path, n_data=None, test_size=0.1):
+    def __init__(self, data_path, n_data=None, validation_split=0.1):
         super(DataLoader, self).__init__()
         logger.info('Initializing Dataloader')
         self.preprocessor = NamedTuple('Preprocessor', [('kor', KorPreprocessor),
@@ -34,7 +34,7 @@ class DataLoader(DataLoaderBase):
 
         self.data_path = data_path
         self.n_data = n_data
-        self.test_size = test_size
+        self.test_size = validation_split
         self.data_train = None
         self.data_test = None
 

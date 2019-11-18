@@ -17,8 +17,11 @@ class TestConfig(unittest.TestCase):
         self.assertEqual(config.name, 'test')
         config.to_json_file(to_json_file)
         config2 = Config.from_json_file(to_json_file)
-
         self.assertEqual(config.name, config2.name)
+
+        from pprint import pprint
+        pprint(config2.to_dict())
+
 
 
 if __name__ == "__main__":
