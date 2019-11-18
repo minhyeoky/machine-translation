@@ -13,7 +13,9 @@ class Config:
         self.display_step = kwargs.get('display_step', 10)
         self.n_data = kwargs.get('n_data', None)
         self.test_size = kwargs.get('test_size', 0.1)
-
+        self.logdir = kwargs.get('logdir', None)
+        self.save_step = kwargs.get('save_step', None)
+        self.save_dir = kwargs.get('save_dir', None)
         # Hyperparamters
         self.batch_size = kwargs.get('batch_size', None)
         self.inference_size = kwargs.get('inference_size', 2)

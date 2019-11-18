@@ -135,12 +135,30 @@ def inference(inference_data):
     return test_inferenced
 
 
-step = 0
+# Tensorboard
+log_writer = tf.summary.create_file_writer(logdir=config.logdir)
+
+# Checkpoint & Manager
+Checkpoint = tf.train.Checkpoint
+ckpt = Checkpoint(step=tf.Variable(initial_value=0, dtype=tf.int64), optimizer=optimizer,
+                  encoder=encoder, decoder=decoder)
+
+ckpt_manager = tf.train.CheckpointManager(checkpoint=ckpt, directory=config.save_dir, max_to_keep=10)
+
+# Load checkpoint if exists
+latest_checkpoint = ckpt_manager.latest_checkpoint
+if latest_checkpoint:
+    ckpt.restore(latest_checkpoint)
+    logger.info(f'Restore from {latest_checkpoint}')
+else:
+    logger.info('Train from scratch')
 
 for epoch in range(config.epochs):
     logger.info(f'Train epoch: {epoch}')
 
     for en, ko in dataset_train:
+        step = ckpt.step.numpy()
+
         start = time()
         train_loss = train_step(en, ko)
         end = time()
@@ -161,4 +179,8 @@ for epoch in range(config.epochs):
             ko_inferenced = inference(en)
             logger.info(f'  original kor text: {tokenizer_ko.sequences_to_texts(ko.numpy())}')
             logger.info(f'  inferenced kor text: {tokenizer_ko.sequences_to_texts(ko_inferenced.numpy())}')
-        step += 1
+        if step % config.save_step == 0:
+            logger.info(f'Save model at step {step}')
+            ckpt_manager.save()
+
+        ckpt.step.assign_add(1)
