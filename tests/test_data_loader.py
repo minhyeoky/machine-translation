@@ -4,8 +4,6 @@ import tensorflow as tf
 
 from src.data.data_loader import DataLoader
 
-os.chdir('..')
-
 
 class TestDataLoader(unittest.TestCase):
 
@@ -13,7 +11,7 @@ class TestDataLoader(unittest.TestCase):
         self.n_data = 10
         self.test_size = 0.5
         self.batch_size = 2
-        self.data_loader = DataLoader('./data/input/aihub_kor-eng/1.구어체.xlsx', n_data=self.n_data,
+        self.data_loader = DataLoader('../data/input/aihub_kor-eng/1.구어체.xlsx', n_data=self.n_data,
                                       validation_split=self.test_size)
 
     def test_len(self):
