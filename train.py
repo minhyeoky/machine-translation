@@ -136,7 +136,6 @@ log_writer = tf.summary.create_file_writer(logdir=config.logdir)
 Checkpoint = tf.train.Checkpoint
 ckpt = Checkpoint(step=tf.Variable(initial_value=0, dtype=tf.int64), optimizer=optimizer,
                   encoder=encoder, decoder=decoder)
-
 ckpt_manager = tf.train.CheckpointManager(checkpoint=ckpt, directory=config.ckpt_dir, max_to_keep=config.ckpt_max_keep)
 
 # Load checkpoint if exists
@@ -156,10 +155,17 @@ for epoch in range(config.epochs):
         start = time()
         train_loss = train_step(en, ko)
         end = time()
+        train_step_time = end - start
+
+        with log_writer.as_default():
+            tf.summary.scalar('train_loss', train_loss, step)
+            tf.summary.scalar('train_step_time', train_step_time, step)
+
         if step % config.display_step == 0:
             logger.info(f'Train step: {step}')
             logger.info(f'  Loss: {train_loss}')
-            logger.info(f'  Time: {end - start: 0.2f}')
+
+            logger.info(f'  Time: {train_step_time : 0.2f}')
 
             logger.info('Train Inferences')
             logger.info(f'  original eng text: {tokenizer_en.sequences_to_texts(en.numpy()[:2])}')
@@ -169,10 +175,18 @@ for epoch in range(config.epochs):
 
             logger.info(f'Test Inferences')
             en, ko = next(dataset_test_iterator)
-            logger.info(f'  original eng text: {tokenizer_en.sequences_to_texts(en.numpy())}')
+            original_eng_text = tokenizer_en.sequences_to_texts(en.numpy())
+            logger.info(f'  original eng text: {original_eng_text}')
             ko_inferenced = inference(en)
-            logger.info(f'  original kor text: {tokenizer_ko.sequences_to_texts(ko.numpy())}')
-            logger.info(f'  inferenced kor text: {tokenizer_ko.sequences_to_texts(ko_inferenced.numpy())}')
+            original_kor_text = tokenizer_ko.sequences_to_texts(ko.numpy())
+            logger.info(f'  original kor text: {original_kor_text}')
+            inferenced_kor_text = tokenizer_ko.sequences_to_texts(ko_inferenced.numpy())
+            logger.info(f'  inferenced kor text: {inferenced_kor_text}')
+            with log_writer.as_default():
+                tf.summary.text('original_eng_text', original_eng_text, step)
+                tf.summary.text('original_kor_text', original_kor_text, step)
+                tf.summary.text('inferenced_kor_text', inferenced_kor_text, step)
+
         if step % config.save_step == 0:
             logger.info(f'Save model at step {step}')
             ckpt_manager.save()

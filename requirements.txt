@@ -1,3 +1,4 @@
 scikit-learn
-tensorflow
 pandas
+konlpy
+xlrd
