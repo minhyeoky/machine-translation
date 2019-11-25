@@ -3,10 +3,14 @@ from src.model.metric import compute_bleu
 
 def get_sentence(x, start='<start>', end='<end>', pad='<unk>'):
   """
+
+  Args:
     x: list of words tokenized by preprocessor
 
-    :return: str without control tokens
-    """
+  Returns:
+    string without control tokens
+
+  """
   ctl_tokens = [start, end, pad]
   ret = []
   for each in x:
@@ -20,11 +24,14 @@ def get_sentence(x, start='<start>', end='<end>', pad='<unk>'):
 
 def get_bleu_score(x, y):
   """
+
+  Args:
     x: list of original sentences
     y: list of inferenced sentences
 
-    :return: mean of bleu scores
-    """
+  Returns:
+    mean value of bleu scores
+  """
   scores = []
   for _x, _y in zip(x, y):
     if isinstance(_x, str):
