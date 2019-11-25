@@ -2,7 +2,7 @@
 
 # Default arguments
 USE_DOCKER=false
-USE_GPU=false
+USE_GPU=""
 TAG="nmt"
 DOCKER_DIR="/tf"
 
@@ -38,13 +38,13 @@ if $USE_DOCKER; then
   if [[ -z "$VOLUME_DIR" ]]; then
     echo "  VOLUME_DIR is not set"
   else
-    echo "  Mount volume: $CONFIG_JSON"
+    echo "  Mount volume: $VOLUME_DIR"
   fi
 
   # Run
   docker build . --tag=$TAG
-  if $USE_GPU; then
-    echo "Running with GPU $USE_GPU"
+  if [[ -n $USE_GPU ]]; then
+    echo "    Running with GPU $USE_GPU"
     docker run \
       --runtime=nvidia \
       -e NVIDIA_VISIBLE_DEVICES=$USE_GPU \
@@ -55,7 +55,7 @@ if $USE_DOCKER; then
       --config_json=$CONFIG_JSON \
       --data_path=data/input/aihub_kor-eng/1.구어체.xlsx
   else
-    echo "Running without GPU"
+    echo "    Running without GPU"
     docker run \
       -e DOCKER_DIR=$DOCKER_DIR \
       -v "$VOLUME_DIR":$DOCKER_DIR \
