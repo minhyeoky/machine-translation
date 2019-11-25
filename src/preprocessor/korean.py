@@ -5,29 +5,30 @@ from .base import PreprocessorBase
 
 
 class KorPreprocessor(PreprocessorBase):
-    def __init__(self):
-        super(KorPreprocessor, self).__init__()
 
-        self.tagger = Mecab()
+  def __init__(self):
+    super(KorPreprocessor, self).__init__()
 
-    def _to_morphs(self, s):
-        return self.tagger.pos(s)
+    self.tagger = Mecab()
 
-    @staticmethod
-    def _clean(s):
-        s = re.sub(r'[^가-힣ㄱ-ㅎ?.!,]', ' ', s)
-        s = s.strip()
-        return s
+  def _to_morphs(self, s):
+    return self.tagger.pos(s)
 
-    def preprocess(self, s):
-        s = self._basic_nmt(s)
-        s = self._clean(s)
+  @staticmethod
+  def _clean(s):
+    s = re.sub(r'[^가-힣ㄱ-ㅎ?.!,]', ' ', s)
+    s = s.strip()
+    return s
 
-        tagged = self._to_morphs(s)
+  def preprocess(self, s):
+    s = self._basic_nmt(s)
+    s = self._clean(s)
 
-        _s = []
-        for w, _ in tagged:
-            _s.append(w)
-        s = ' '.join(_s)
-        s = self._add_token(s)
-        return s
+    tagged = self._to_morphs(s)
+
+    _s = []
+    for w, _ in tagged:
+      _s.append(w)
+    s = ' '.join(_s)
+    s = self._add_token(s)
+    return s
