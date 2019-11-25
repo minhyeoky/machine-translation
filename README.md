@@ -4,18 +4,18 @@
 1. Make flexible deeplearning project template 
 2. Compare performances of different models & methods
 3. Understand and implement attention perfectly
-4. ...
 
 ## Models
 - [x] Seq2seq
 - [ ] Attention
 - [ ] Transformer
-## Methods
-- [ ] korean pos tagger
-    - [x] Mecab
-    - [ ] Khaiii
-- [ ] ...
-    
+
+## Visualization
+- [x] BLEU [train, test]
+- [x] Losses [train]
+- [x] Times per step
+- [x] Text examples [train, test]
+  
 ## Principles
 1. Well defined entry point for train & inference
 2. From raw data to trained model

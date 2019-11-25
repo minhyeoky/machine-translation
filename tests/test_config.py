@@ -1,5 +1,6 @@
 import unittest
 from src.config import Config
+from src.utils import get_sentence, get_bleu_score
 
 
 class TestConfig(unittest.TestCase):
@@ -18,6 +19,11 @@ class TestConfig(unittest.TestCase):
 
         from pprint import pprint
         pprint(config2.to_dict())
+
+    def test_utils_get_sentence(self):
+        orig = ['<start>', '안녕', '나는', '이민혁', '.', '<end>', '.']
+        sentence = '안녕 나는 이민혁 .'
+        self.assertEqual(get_sentence(x=orig), sentence)
 
 
 if __name__ == "__main__":

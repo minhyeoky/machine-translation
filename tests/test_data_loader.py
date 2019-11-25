@@ -36,7 +36,6 @@ class TestDataLoader(unittest.TestCase):
         dataset = tf.data.Dataset.from_generator(self.data_loader.test_data_generator,
                                                  output_types=(tf.int32, tf.int32)).batch(batch_size=self.batch_size)
         example = next(iter(dataset))
-        print(example)
 
 
 if __name__ == "__main__":

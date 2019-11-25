@@ -2,12 +2,14 @@
 Neural machine translation english to korean
 """
 import argparse
+from collections import namedtuple
 from time import time
 import tensorflow as tf
 
 from src.model.model import Encoder, Decoder
 from src.data.data_loader import DataLoader
 from src.config import Config
+from src.utils import get_bleu_score
 
 PREFETCH = tf.data.experimental.AUTOTUNE
 
@@ -130,7 +132,9 @@ def inference(inference_data):
 
 
 # Tensorboard
-log_writer = tf.summary.create_file_writer(logdir=config.logdir)
+log_writer = namedtuple('logWriter', ['train', 'test'])
+log_writer.train = tf.summary.create_file_writer(logdir=config.logdir + '_train')
+log_writer.test = tf.summary.create_file_writer(logdir=config.logdir + '_test')
 
 # Checkpoint & Manager
 Checkpoint = tf.train.Checkpoint
@@ -157,21 +161,33 @@ for epoch in range(config.epochs):
         end = time()
         train_step_time = end - start
 
-        with log_writer.as_default():
+        with log_writer.train.as_default():
             tf.summary.scalar('train_loss', train_loss, step)
             tf.summary.scalar('train_step_time', train_step_time, step)
 
         if step % config.display_step == 0:
             logger.info(f'Train step: {step}')
             logger.info(f'  Loss: {train_loss}')
-
             logger.info(f'  Time: {train_step_time : 0.2f}')
 
             logger.info('Train Inferences')
-            logger.info(f'  original eng text: {tokenizer_en.sequences_to_texts(en.numpy()[:2])}')
+            original_eng_text = tokenizer_en.sequences_to_texts(en.numpy()[:2])
+            logger.info(f'  original eng text: {original_eng_text}')
             ko_inferenced = inference(en)
-            logger.info(f'  original kor text: {tokenizer_ko.sequences_to_texts(ko.numpy()[:2])}')
-            logger.info(f'  inferenced kor text: {tokenizer_ko.sequences_to_texts(ko_inferenced.numpy()[:2])}')
+            original_kor_text = tokenizer_ko.sequences_to_texts(ko.numpy()[:2])
+            logger.info(f'  original kor text: {original_kor_text}')
+            inferenced_kor_text = tokenizer_ko.sequences_to_texts(ko_inferenced.numpy()[:2])
+            logger.info(f'  inferenced kor text: {inferenced_kor_text}')
+            ko = tokenizer_ko.sequences_to_texts(ko.numpy())
+            ko_inferenced = tokenizer_ko.sequences_to_texts(ko_inferenced.numpy())
+            bleu_train = get_bleu_score(ko, ko_inferenced)
+            logger.info(f'  mean bleu score: {bleu_train}')
+
+            with log_writer.train.as_default():
+                tf.summary.text('original_eng_text', original_eng_text, step)
+                tf.summary.text('original_kor_text', original_kor_text, step)
+                tf.summary.text('inferenced_kor_text', inferenced_kor_text, step)
+                tf.summary.scalar('bleu', bleu_train, step)
 
             logger.info(f'Test Inferences')
             en, ko = next(dataset_test_iterator)
@@ -182,10 +198,16 @@ for epoch in range(config.epochs):
             logger.info(f'  original kor text: {original_kor_text}')
             inferenced_kor_text = tokenizer_ko.sequences_to_texts(ko_inferenced.numpy())
             logger.info(f'  inferenced kor text: {inferenced_kor_text}')
-            with log_writer.as_default():
+            ko = tokenizer_ko.sequences_to_texts(ko.numpy())
+            ko_inferenced = tokenizer_ko.sequences_to_texts(ko_inferenced.numpy())
+            bleu_test = get_bleu_score(ko, ko_inferenced)
+            logger.info(f'  mean bleu score: {bleu_test}')
+
+            with log_writer.test.as_default():
                 tf.summary.text('original_eng_text', original_eng_text, step)
                 tf.summary.text('original_kor_text', original_kor_text, step)
                 tf.summary.text('inferenced_kor_text', inferenced_kor_text, step)
+                tf.summary.scalar('bleu', bleu_test, step)
 
         if step % config.save_step == 0:
             logger.info(f'Save model at step {step}')
