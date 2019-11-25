@@ -55,7 +55,7 @@ if $USE_DOCKER; then
       -e DOCKER_DIR=$DOCKER_DIR \
       -v "$VOLUME_DIR":$DOCKER_DIR \
       $TAG \
-      python train.py \
+      python train_seq2seq.py \
       --config_json=$CONFIG_JSON \
       --data_path=data/input/aihub_kor-eng/1.구어체.xlsx \
       --model="$MODEL_NAME"
@@ -65,14 +65,14 @@ if $USE_DOCKER; then
       -e DOCKER_DIR=$DOCKER_DIR \
       -v "$VOLUME_DIR":$DOCKER_DIR \
       $TAG \
-      python train.py \
+      python train_seq2seq.py \
       --config_json=$CONFIG_JSON \
       --data_path=data/input/aihub_kor-eng/1.구어체.xlsx \
       --model="$MODEL_NAME"
   fi
 else
   # Run locally
-  python3 train.py \
+  python3 train_seq2seq.py \
     --config_json=$CONFIG_JSON \
     --data_path=data/input/aihub_kor-eng/1.구어체.xlsx \
     --model="$MODEL_NAME"

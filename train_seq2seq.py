@@ -9,6 +9,7 @@ import tensorflow as tf
 from src.data.data_loader import DataLoader
 from src.config import Config
 from src.utils import get_bleu_score
+from src.model.seq2seq import Encoder, Decoder
 
 PREFETCH = tf.data.experimental.AUTOTUNE
 
@@ -21,12 +22,10 @@ logger.info('Parsing arguments')
 parser = argparse.ArgumentParser()
 parser.add_argument('--config_json', type=str, required=True)
 parser.add_argument('--data_path', type=str, required=True)
-parser.add_argument('--model', type=str, required=True)
 args = parser.parse_args()
 
 data_path = args.data_path
 config_json = args.config_json
-model = args.model
 
 # Config
 config = Config.from_json_file(config_json)
@@ -53,10 +52,6 @@ vocab_size_ko = len(tokenizer_ko.word_index) + 1
 vocab_size_en = len(tokenizer_en.word_index) + 1
 
 # Model
-if model == 'seq2seq':
-  from src.model.seq2seq import Encoder, Decoder
-elif model == 'attention':
-  pass
 encoder = Encoder(vocab_size_en, **config.encoder['args'])
 decoder = Decoder(vocab_size_ko, **config.decoder['args'])
 
