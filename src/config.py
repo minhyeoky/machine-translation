@@ -25,7 +25,7 @@ class Config:
     self.batch_size = self.train.get('batch_size', None)
     self.epochs = self.train.get('epochs', None)
     # Train - data_loader
-    self.data_loader: dict = self.train['data_loader']
+    self.data_loader: dict = kwargs['data_loader']
     self.batch_size = self.data_loader.get('batch_size', None)
     self.buffer_size = self.data_loader.get('buffer_size', self.batch_size * 10)
 

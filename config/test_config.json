@@ -10,20 +10,6 @@
   },
   "train": {
     "epochs": 100,
-    "data_loader": {
-      "batch_size": 2,
-      "args": {
-        "n_data": 20,
-        "validation_split": 0.1
-      }
-    },
-    "optimizer": {
-      "type": 0,
-      "args": {
-        "lr": 0.001,
-        "beta_1": 0.9
-      }
-    },
     "model": {
       "encoder": {
         "type": null,
@@ -39,9 +25,23 @@
           "n_units": 256
         }
       }
+    },
+    "optimizer": {
+      "type": 0,
+      "args": {
+        "lr": 0.001,
+        "beta_1": 0.9
+      }
     }
   },
   "inference": {
     "inference_size": 2
+  },
+  "data_loader": {
+    "batch_size": 2,
+    "args": {
+      "n_data": 20,
+      "validation_split": 0.1
+    }
   }
 }

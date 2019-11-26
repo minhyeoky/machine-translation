@@ -10,13 +10,6 @@
   },
   "train": {
     "epochs": 20,
-    "data_loader": {
-      "batch_size": 32,
-      "args": {
-        "n_data": null,
-        "validation_split": 0.1
-      }
-    },
     "optimizer": {
       "type": 0,
       "args": {
@@ -43,5 +36,12 @@
   },
   "inference": {
     "inference_size": 4
+  },
+  "data_loader": {
+    "batch_size": 32,
+    "args": {
+      "n_data": null,
+      "validation_split": 0.1
+    }
   }
 }
