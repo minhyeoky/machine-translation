@@ -161,8 +161,8 @@ def inference(data):
 
 for e in range(config.epochs):
   logger.info(f'Train epoch: {e}')
-  step = ckpt.step.numpy()
   for en, ko in dataset_train:
+    step = ckpt.step.numpy()
     start = time()
     train_loss = train_step(en, ko)
     end = time()

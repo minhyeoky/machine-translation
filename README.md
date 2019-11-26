@@ -1,9 +1,9 @@
 # Neural Machine Translation
 
 ## Objectives
-1. Make flexible deeplearning project template 
+1. Make flexible deeplearning project template
 2. Compare performances of different models & methods
-3. Understand and implement attention perfectly
+3. Understand and implement attention mechanism
 
 ## Models
 - [x] Seq2seq
