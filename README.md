@@ -7,7 +7,7 @@
 
 ## Models
 - [x] Seq2seq
-- [ ] Attention
+- [x] Attention
 - [ ] Transformer
 
 ## Visualization
