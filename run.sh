@@ -6,6 +6,7 @@ USE_GPU=""
 TAG="nmt"
 DOCKER_DIR="/tf"
 MODEL_NAME="seq2seq"
+DATA_PATH=data/input/aihub_kor-eng/1.구어체.xlsx
 
 while getopts "g:dj:v:m:" opt; do
   case "$opt" in
@@ -30,9 +31,19 @@ while getopts "g:dj:v:m:" opt; do
   esac
 done
 
+
+
+if [[ $MODEL_NAME == "seq2seq" ]]; then
+  RUN_TRAIN="python train_seq2seq.py --config_json=$DOCKER_DIR/$CONFIG_JSON --data_path=$DATA_PATH"
+elif [[ $MODEL_NAME == "bahdanau" ]]; then
+  RUN_TRAIN="python train_bahdanau.py --config_json=$DOCKER_DIR/$CONFIG_JSON --data_path=$DATA_PATH"
+fi
+
+
 if $USE_DOCKER; then
   echo "Running in docker container"
 
+  echo "  MODEL: $MODEL_NAME"
   # integrity check
   if [[ -z "$CONFIG_JSON" ]]; then
     echo "  CONFIG_JSON is not set"
@@ -51,29 +62,21 @@ if $USE_DOCKER; then
     echo "    Running with GPU $USE_GPU"
     docker run \
       --runtime=nvidia \
-      -e NVIDIA_VISIBLE_DEVICES=$USE_GPU \
+      -e NVIDIA_VISIBLE_DEVICES="$USE_GPU" \
       -e DOCKER_DIR=$DOCKER_DIR \
       -v "$VOLUME_DIR":$DOCKER_DIR \
       $TAG \
-      python train_seq2seq.py \
-      --config_json=$CONFIG_JSON \
-      --data_path=data/input/aihub_kor-eng/1.구어체.xlsx \
-      --model="$MODEL_NAME"
+      $RUN_TRAIN
+
   else
     echo "    Running without GPU"
     docker run \
       -e DOCKER_DIR=$DOCKER_DIR \
       -v "$VOLUME_DIR":$DOCKER_DIR \
       $TAG \
-      python train_seq2seq.py \
-      --config_json=$CONFIG_JSON \
-      --data_path=data/input/aihub_kor-eng/1.구어체.xlsx \
-      --model="$MODEL_NAME"
+      $RUN_TRAIN
   fi
 else
   # Run locally
-  python3 train_seq2seq.py \
-    --config_json=$CONFIG_JSON \
-    --data_path=data/input/aihub_kor-eng/1.구어체.xlsx \
-    --model="$MODEL_NAME"
+  $RUN_TRAIN
 fi

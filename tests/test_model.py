@@ -3,6 +3,9 @@ import unittest
 import tensorflow as tf
 
 from src.model.seq2seq import Encoder, Decoder
+from src.model.seq2seq_bahdanau import BahdanauAttention
+from src.model.seq2seq_bahdanau import Encoder as BahdanauEncoder
+from src.model.seq2seq_bahdanau import Decoder as BahdanauDecoder
 
 
 class MyTestCase(unittest.TestCase):
@@ -40,6 +43,31 @@ class MyTestCase(unittest.TestCase):
     self.assertEqual(outputs.shape, (self.batch_size, 5, self.n_units))
     self.assertEqual(h.shape, (self.batch_size, self.n_units))
     self.assertEqual(c.shape, (self.batch_size, self.n_units))
+
+  def test_encoder_bahdanau(self):
+    encoder = BahdanauEncoder(self.vocab_size, self.embedding_size,
+                              self.n_units)
+    inputs = self.test_data, encoder.initial_state(self.batch_size)
+    outputs, h, c = encoder(inputs, training=True)
+
+    self.assertEqual(outputs.shape, (self.batch_size, 5, self.n_units))
+    self.assertEqual(h.shape, (self.batch_size, self.n_units))
+    self.assertEqual(c.shape, (self.batch_size, self.n_units))
+
+  def test_decoder_bahdanau(self):
+    encoder = BahdanauEncoder(self.vocab_size, self.embedding_size,
+                              self.n_units)
+    inputs = self.test_data, encoder.initial_state(self.batch_size)
+    outputs, h, c = encoder(inputs, training=True)
+
+  #   decoder = BahdanauDecoder(self.vocab_size, self.embedding_size,
+  #                             self.n_units, bahdanau_units=10)
+  #   inputs = self.test_data, outputs, (h, c)
+  #   outputs, h, c = decoder(inputs, training=True)
+  #
+  #   self.assertEqual(outputs.shape, (self.batch_size, self.vocab_size))
+  #   self.assertEqual(h.shape, (self.batch_size, self.n_units))
+  #   self.assertEqual(c.shape, (self.batch_size, self.n_units))
 
 
 if __name__ == '__main__':
