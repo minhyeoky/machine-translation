@@ -59,7 +59,7 @@ decoder = Decoder(vocab_size_ko, **config.decoder['args'])
 optimizer = Adam(**config.optimizer['args'])
 
 
-# @tf.function
+@tf.function
 def train_step(en_train, ko_train):
   loss = 0
   train_batch_size = config.batch_size
@@ -82,7 +82,7 @@ def train_step(en_train, ko_train):
 
     for time_step in range(1, outputs_encoder.shape[1]):
       initial_state = (h_decoder, c_decoder)
-      inputs_decoder = (input_decoder, initial_state)
+      inputs_decoder = (input_decoder, outputs_encoder, initial_state)
       logits, h_decoder, c_decoder = decoder(inputs_decoder)
 
       # logits - decoder's prediction at timestep t-1,
@@ -107,7 +107,7 @@ def train_step(en_train, ko_train):
   return loss
 
 
-# @tf.function
+@tf.function
 def inference(inference_data):
   inference_size = inference_data.shape[0]
   initial_state = encoder.initial_state(inference_size)
@@ -128,7 +128,7 @@ def inference(inference_data):
   ret = tf.zeros((inference_size, 0), dtype=tf.int32)
 
   for timestep in range(max_timestep):
-    inputs_decoder = input_decoder, (h_decoder, c_decoder)
+    inputs_decoder = input_decoder, outputs_encoder, (h_decoder, c_decoder)
     outputs_decoder = decoder(inputs_decoder, training=False)
     logits, h_decoder, c_decoder = outputs_decoder
 
