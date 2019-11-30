@@ -37,6 +37,8 @@ if [[ $MODEL_NAME == "seq2seq" ]]; then
   RUN_TRAIN="python train_seq2seq.py --config_json=$DOCKER_DIR/$CONFIG_JSON --data_path=$DATA_PATH"
 elif [[ $MODEL_NAME == "bahdanau" ]]; then
   RUN_TRAIN="python train_bahdanau.py --config_json=$DOCKER_DIR/$CONFIG_JSON --data_path=$DATA_PATH"
+elif [[ $MODEL_NAME == "seq2seq_bidirectional" ]]; then
+  RUN_TRAIN="python train_seq2seq_bidirectional.py --config_json=$DOCKER_DIR/$CONFIG_JSON --data_path=$DATA_PATH"
 fi
 
 

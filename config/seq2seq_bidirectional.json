@@ -1,0 +1,47 @@
+{
+  "name": "seq2seq_bidirectional",
+  "meta": {
+    "logdir": "data/output/seq2seq_bidirectional/logs",
+    "ckpt_dir": "data/output/seq2seq_bidirectional/ckpt",
+    "save_step": 100,
+    "display_step": 10,
+    "log_level": "DEBUG",
+    "ckpt_max_keep": 10
+  },
+  "train": {
+    "epochs": 20,
+    "optimizer": {
+      "type": 0,
+      "args": {
+        "lr": 0.001,
+        "beta_1": 0.9
+      }
+    },
+    "model": {
+      "encoder": {
+        "type": null,
+        "args": {
+          "embedding_size": 256,
+          "n_units": 512
+        }
+      },
+      "decoder": {
+        "type": null,
+        "args": {
+          "embedding_size": 256,
+          "n_units": 1024
+        }
+      }
+    }
+  },
+  "inference": {
+    "inference_size": 4
+  },
+  "data_loader": {
+    "batch_size": 32,
+    "args": {
+      "n_data": null,
+      "validation_split": 0.1
+    }
+  }
+}

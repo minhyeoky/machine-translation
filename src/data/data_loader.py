@@ -38,6 +38,8 @@ class DataLoader(DataLoaderBase):
     self.test_size = validation_split
     self.data_train = None
     self.data_test = None
+    self.eng_vocab_size = None
+    self.kor_vocab_size = None
 
     tokenizer = keras.preprocessing.text.Tokenizer
 
@@ -55,6 +57,10 @@ class DataLoader(DataLoaderBase):
                                    lower=True,
                                    split=' ',
                                    oov_token='<unk>')
+
+    self.build()
+
+  def build(self):
     self._load_data()
 
   def train_data_generator(self):
@@ -68,7 +74,7 @@ class DataLoader(DataLoaderBase):
       yield e, k
 
   @staticmethod
-  def _tokenize(texts, tokenizer, fit=True):
+  def _tokenize(texts, tokenizer, fit):
     if fit:
       tokenizer.fit_on_texts(texts)
     sequences = tokenizer.texts_to_sequences(texts)
@@ -102,11 +108,17 @@ class DataLoader(DataLoaderBase):
     en_train, ko_train = zip(*_data_train)
     en_test, ko_test = zip(*_data_test)
 
-    en_train = self._tokenize(en_train, self.tokenizer.eng)
-    ko_train = self._tokenize(ko_train, self.tokenizer.kor)
+    en_train = self._tokenize(en_train, self.tokenizer.eng, fit=True)
+    ko_train = self._tokenize(ko_train, self.tokenizer.kor, fit=True)
 
     en_test = self._tokenize(en_test, self.tokenizer.eng, fit=False)
     ko_test = self._tokenize(ko_test, self.tokenizer.kor, fit=False)
+
+    self.eng_vocab_size = len(self.tokenizer.eng.word_index) + 1
+    self.kor_vocab_size = len(self.tokenizer.kor.word_index) + 1
+
+    logger.info(f' English vocab size: {self.eng_vocab_size}')
+    logger.info(f' Korean vocab size: {self.kor_vocab_size}')
 
     self.data_train = Data(kor=ko_train, eng=en_train)
     self.data_test = Data(kor=ko_test, eng=en_test)
