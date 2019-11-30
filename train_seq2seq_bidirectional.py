@@ -59,7 +59,7 @@ decoder = Decoder(vocab_size_ko, **config.decoder['args'])
 optimizer = Adam(**config.optimizer['args'])
 
 
-# @tf.function
+@tf.function
 def train_step(en_train, ko_train):
   loss = 0
   train_batch_size = config.batch_size
@@ -107,7 +107,7 @@ def train_step(en_train, ko_train):
   return loss
 
 
-# @tf.function
+@tf.function
 def inference(inference_data):
   inference_size = inference_data.shape[0]
   initial_state = encoder.initial_state(inference_size)
