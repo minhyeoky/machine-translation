@@ -1,0 +1,48 @@
+{
+  "name": "bahdanau_bidirectional",
+  "meta": {
+    "logdir": "data/output/bahdanau_bidirectional/logs",
+    "ckpt_dir": "data/output/bahdanau_bidirectional/ckpt",
+    "save_step": 100,
+    "display_step": 10,
+    "log_level": "DEBUG",
+    "ckpt_max_keep": 10
+  },
+  "train": {
+    "epochs": 100,
+    "optimizer": {
+      "type": 0,
+      "args": {
+        "lr": 0.001,
+        "beta_1": 0.9
+      }
+    },
+    "model": {
+      "encoder": {
+        "type": null,
+        "args": {
+          "embedding_size": 256,
+          "n_units": 512
+        }
+      },
+      "decoder": {
+        "type": null,
+        "args": {
+          "embedding_size": 256,
+          "n_units": 1024,
+          "bahdanau_units": 128
+        }
+      }
+    }
+  },
+  "inference": {
+    "inference_size": 4
+  },
+  "data_loader": {
+    "batch_size": 32,
+    "args": {
+      "n_data": 100,
+      "validation_split": 0.1
+    }
+  }
+}
