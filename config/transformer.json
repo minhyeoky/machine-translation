@@ -1,0 +1,53 @@
+{
+  "name": "transformer",
+  "meta": {
+    "logdir": "data/output/transformer/logs",
+    "ckpt_dir": "data/output/transformer/ckpt",
+    "save_step": 100,
+    "display_step": 10,
+    "log_level": "DEBUG",
+    "ckpt_max_keep": 10
+  },
+  "train": {
+    "epochs": 100,
+    "model": {
+      "encoder": {
+        "type": null,
+        "args": {
+          "d_model": 256,
+          "n_layer": 3,
+          "n_head": 6,
+          "d_ff": 512,
+          "learned_pos_enc": false
+        }
+      },
+      "decoder": {
+        "type": null,
+        "args": {
+          "d_model": 256,
+          "n_layer": 3,
+          "n_head": 6,
+          "d_ff": 512,
+          "learned_pos_enc": false
+        }
+      }
+    },
+    "optimizer": {
+      "type": 0,
+      "args": {
+        "lr": 0.001,
+        "beta_1": 0.9
+      }
+    }
+  },
+  "inference": {
+    "inference_size": 2
+  },
+  "data_loader": {
+    "batch_size": 32,
+    "args": {
+      "n_data": 100,
+      "validation_split": 0.1
+    }
+  }
+}

@@ -15,6 +15,9 @@
 - [x] Losses [train]
 - [x] Times per step
 - [x] Text examples [train, test]
+- [ ] Visualize attention weights
+    - [ ] Bahdanau seq2seq
+    - [ ] Transformer
   
 ## Principles
 1. Well defined entry point for train & inference

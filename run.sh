@@ -41,6 +41,8 @@ elif [[ $MODEL_NAME == "seq2seq_bidirectional" ]]; then
   RUN_TRAIN="python train_seq2seq_bidirectional.py --config_json=$DOCKER_DIR/$CONFIG_JSON --data_path=$DATA_PATH"
 elif [[ $MODEL_NAME == "bahdanau_bidirectional" ]]; then
   RUN_TRAIN="python train_bahdanau_bidirectional.py --config_json=$DOCKER_DIR/$CONFIG_JSON --data_path=$DATA_PATH"
+elif [[ $MODEL_NAME == "transformer" ]]; then
+  RUN_TRAIN="python train_transformer.py --config_json=$DOCKER_DIR/$CONFIG_JSON --data_path=$DATA_PATH"
 fi
 
 

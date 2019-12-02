@@ -1,7 +1,10 @@
 import unittest
+import tensorflow as tf
 
 from src.model.metric import compute_bleu
 from src.utils import get_bleu_score
+from src.model.loss import transformer_train_loss
+from src.model.transformer import Encoder as TransformerEncoder
 
 
 class MyTestCase(unittest.TestCase):
@@ -39,6 +42,26 @@ class MyTestCase(unittest.TestCase):
                                     '선생 이 문장 이 이해 가 요 . <end> <end> <end>'
                                 ])
     self.assertEqual(bleu_score, 0.2170999676365301)
+
+  def test_transforemr_loss(self):
+    batch_size = 5
+    seq_len = 2
+    labels = tf.random.uniform(shape=(batch_size, seq_len),
+                               minval=0,
+                               maxval=10,
+                               dtype=tf.int32)
+    labels = tf.constant([
+      [1, 0],
+      [1, 0],
+      [1, 0],
+      [1, 0],
+      [1, 0],
+    ])
+    d_model = 100
+    logits = tf.random.normal(shape=(batch_size, seq_len, d_model), dtype=tf.float32)
+    mask = transformer_train_loss(logits, labels, 0)
+    print(mask)
+    self.assertEqual(mask.shape, ())
 
 
 if __name__ == '__main__':
