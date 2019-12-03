@@ -36,6 +36,7 @@ class Config:
     self.model = self.train.get('model', None)
     self.encoder = self.model.get('encoder', None)
     self.decoder = self.model.get('decoder', None)
+    self.transformer = self.model.get('transformer', None)
 
     # Inference
     self.inference: dict = kwargs['inference']

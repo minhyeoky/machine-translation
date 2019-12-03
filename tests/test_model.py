@@ -8,7 +8,7 @@ from src.model.seq2seq_bahdanau import BahdanauAttention
 from src.model.seq2seq_bahdanau import Encoder as BahdanauEncoder
 from src.model.seq2seq_bahdanau import Decoder as BahdanauDecoder
 from src.model.seq2seq_bidirectional import Encoder as Seq2seqBidirectionalEncoder
-from src.model.transformer import ScaledDotProductAttention, MultiHeadAttention
+from src.model.transformer import ScaledDotProductAttention, MultiHeadAttention, create_pad_mask
 from src.model.transformer import Encoder as TransformerEncoder
 from src.model.transformer import DecoderLayer as TransformerDecoderLayer
 from src.model.transformer import Decoder as TransformerDecoder
@@ -33,16 +33,17 @@ class MyTestCase(unittest.TestCase):
          [4, 2, 0, 0, 0]], dtype=tf.int32)
 
     ###
+    # https://www.tensorflow.org/tutorials/text/transformer#positional_encoding
     self.q = tf.constant([[[0, 10, 0]]], dtype=tf.float32)  # (1, 3)
     self.k = tf.constant([[[10, 0, 0],
                            [0, 10, 0],
                            [0, 0, 10],
                            [0, 0, 10]]],
                          dtype=tf.float32)  # (4, 3)
-    self.v = tf.constant([[[1, 0, 0],
-                           [10, 0, 0],
-                           [100, 5, 0],
-                           [1000, 6, 0]]], dtype=tf.float32)  # (4, 3)
+    self.v = tf.constant([[[1, 0],
+                           [10, 0],
+                           [100, 5],
+                           [1000, 6]]], dtype=tf.float32)  # (4, 3)
     # yapf: enable
 
   def test_decoder(self):
@@ -64,13 +65,13 @@ class MyTestCase(unittest.TestCase):
       self.assertEqual(h.shape, (self.batch_size, self.n_units))
       self.assertEqual(c.shape, (self.batch_size, self.n_units))
 
-  def test_encoder(self):
-    encoder = Encoder(vocab_size=10, n_units=128)
-    inputs = self.test_data, encoder.initial_state(2)
-    outputs, h, c = encoder(inputs, training=True)
-    self.assertEqual(outputs.shape, (self.batch_size, 5, self.n_units))
-    self.assertEqual(h.shape, (self.batch_size, self.n_units))
-    self.assertEqual(c.shape, (self.batch_size, self.n_units))
+  # def test_encoder(self):
+  #   encoder = Encoder(vocab_size=10, n_units=128)
+  #   inputs = self.test_data, encoder.initial_state(2)
+  #   outputs, h, c = encoder(inputs, training=True)
+  #   self.assertEqual(outputs.shape, (self.batch_size, 5, self.n_units))
+  #   self.assertEqual(h.shape, (self.batch_size, self.n_units))
+  #   self.assertEqual(c.shape, (self.batch_size, self.n_units))
 
   def test_encoder_bahdanau(self):
     encoder = BahdanauEncoder(self.vocab_size, self.embedding_size,
@@ -156,26 +157,30 @@ class MyTestCase(unittest.TestCase):
   # print(tf.tensordot(query_with_heads, dense_layer(keys)))
   # tf.do
 
-  def test_look_head_mask(self):
+  def test_look_ahead_mask(self):
 
-    x = tf.random.uniform(shape=(self.batch_size, self.max_seq),
-                          minval=0,
-                          maxval=self.vocab_size - 1,
-                          dtype=tf.int32)
-    x = self.x_for_mask
-    mask = TransformerDecoder.create_look_head_mask(x, self.max_seq)
+    def create_look_ahead_mask(size):
+      # https://www.tensorflow.org/tutorials/text/transformer#positional_encoding
+      mask = 1 - tf.linalg.band_part(tf.ones((size, size)), -1, 0)
+      return mask    # (seq_len, seq_len)
+
+    seq_len = 5
+    batch_size = 5
+    x = tf.random.uniform(shape=(batch_size, seq_len),
+                          dtype=tf.int32,
+                          maxval=100)
+    mask = create_look_ahead_mask(x, seq_len)
+    mask_reference = create_look_ahead_mask(seq_len)
+    print(mask_reference)
+    self.assertEqual(mask_reference.shape, (seq_len, seq_len))
+    mask_reference = list(tf.reshape(mask_reference, shape=(-1,)).numpy())
+    self.assertEqual(mask.shape, (batch_size, seq_len, seq_len))
+    my_mask = list(tf.reshape(mask[0], shape=(-1,)).numpy())
+    print("mask_reference", mask_reference)
+    print("my_mask", my_mask)
+    self.assertListEqual(mask_reference, my_mask)
+
     # print(mask)
-
-  # [[[0, 1, 1, 1, 1],
-  #   [0, 0, 1, 1, 1],
-  #   [0, 0, 0, 1, 1],
-  #   [0, 0, 0, 0, 1],
-  #   [0, 0, 0, 0, 0]],
-  #  [[0, 1, 1, 1, 1],
-  #   [0, 0, 1, 1, 1],
-  #   [0, 0, 0, 1, 1],
-  #   [0, 0, 0, 0, 1],
-  #   [0, 0, 0, 0, 0]]]
 
   def test_scaled_dot_product_attention(self):
     scaled_dot_product_attention = ScaledDotProductAttention()
@@ -190,9 +195,16 @@ class MyTestCase(unittest.TestCase):
 
     c, aw = scaled_dot_product_attention(q, k, v, pad_mask=None)
     aw_list = list(aw.numpy()[0][0].astype(np.uint8))
+    self.assertEqual(aw.shape, (batch_size, seq_q, seq_k))
     self.assertListEqual(aw_list, [0., 1., 0., 0.])
-    self.assertEqual(c.shape, (batch_size, seq_q, 3))
+    self.assertEqual(c.shape, (batch_size, seq_q, 2))
+    self.assertListEqual(list(c[0][0].numpy().astype(np.uint8)), [10., 0.])
     self.assertEqual(aw.shape, (batch_size, seq_q, seq_v))
+    temp_q = tf.constant([[[0, 0, 10]]], dtype=tf.float32)
+    c, aw = scaled_dot_product_attention(temp_q, k, v, pad_mask=None)
+    aw_list = list(aw.numpy()[0][0].astype(np.float16))
+    self.assertListEqual(aw_list, [0., 0., 0.5, 0.5])
+    self.assertListEqual(list(c[0][0].numpy().astype(np.float32)), [550., 5.5])
     aw_ = np.sum(aw[0][0].numpy())
     self.assertEqual(aw_, 1.)
 
@@ -215,8 +227,8 @@ class MyTestCase(unittest.TestCase):
     x = np.random.randint(0, 100, size=(self.batch_size, self.max_seq))
     n_head = 8
     n_layer = 6
-    encoder = TransformerEncoder(100, 100, 100, n_layer, n_head, 200)
-    xs = encoder(x, attention_mask=encoder.create_pad_mask(x, 0), training=True)
+    encoder = TransformerEncoder(100, 100, n_layer, n_head, 200)
+    xs = encoder(x, attention_mask=create_pad_mask(x, 0), training=True)
     self.assertEqual(
         np.array(xs).shape, (n_layer, self.batch_size, self.max_seq, 100))
 
@@ -238,13 +250,7 @@ class MyTestCase(unittest.TestCase):
                             learned_pos_enc=True,
                             seq_len=seq_len)
 
-    self.assertEqual(
-        tf.convert_to_tensor(
-            te(x, attention_mask=te.create_pad_mask(x, 0),
-               training=True)).shape,
-        (n_layer, batch_size, seq_len, self.n_units))
-
-    mask = te.create_pad_mask(x)
+    mask = create_pad_mask(x)
     self.assertEqual(mask.shape, (batch_size, seq_len, seq_len))
     self.assertListEqual(list(mask.numpy()[0][0]), [0., 0., 0., 0., 1.])
 
@@ -285,7 +291,7 @@ class MyTestCase(unittest.TestCase):
                      [1, 2, 3, 0, 0],
                      [0, 0, 0, 0, 0]])    # (5, 5)
     # yapf: enable
-    mask = TransformerDecoder.create_pad_mask(q, k, 0)
+    mask = create_pad_mask(q, k, 0)
     print(mask)
     self.assertEqual(mask.shape, (5, 7, 5))
 
@@ -308,11 +314,11 @@ class MyTestCase(unittest.TestCase):
     q = np.random.randint(0, vocab_size, size=(batch_size, seq_len_input))
     k = np.random.randint(0, vocab_size, size=(batch_size, seq_len))
     outputs_encoder = tf.random.normal(shape=(batch_size, seq_len, d_model))
-    attention_mask = TransformerDecoder.create_pad_mask(q, k, pad_idx=0)
+    attention_mask = create_pad_mask(q, pad_idx=0)
     self.assertEqual(attention_mask.shape, (batch_size, seq_len_input, seq_len))
     self.assertEqual(inputs.shape, (batch_size, seq_len_input, d_model))
     self.assertEqual(outputs_encoder.shape, (batch_size, seq_len, d_model))
-    self_attention_mask = TransformerDecoder.create_pad_mask(q, q, 0)
+    self_attention_mask = create_pad_mask(q, 0)
     self.assertEqual(self_attention_mask.shape,
                      (batch_size, seq_len_input, seq_len_input))
 
@@ -350,15 +356,14 @@ class MyTestCase(unittest.TestCase):
                           dtype=tf.int32,
                           minval=0,
                           maxval=10)
-    attention_mask = TransformerDecoder.create_pad_mask(start_tokens, k, 0)
-    self_attention_mask = TransformerDecoder.create_pad_mask(
-        start_tokens, start_tokens, 0)
+    attention_mask = create_pad_mask(start_tokens, k, 0)
+    self_attention_mask = create_pad_mask(start_tokens, start_tokens, 0)
     logits = decoder(start_tokens,
                      outputs_encoder,
                      training=True,
                      attention_mask=attention_mask,
                      self_attention_mask=self_attention_mask)
-    self.assertEqual(logits.shape, (batch_size, seq_len, vocab_size))
+    self.assertEqual(logits.shape, (batch_size, 1, vocab_size))
     # inputs = tf.random.uniform(shape=(batch_size, seq_len))
 
 

@@ -15,6 +15,7 @@
 - [x] Losses [train]
 - [x] Times per step
 - [x] Text examples [train, test]
+- [ ] Number of parameters
 - [ ] Visualize attention weights
     - [ ] Bahdanau seq2seq
     - [ ] Transformer

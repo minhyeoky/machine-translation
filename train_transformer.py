@@ -7,10 +7,12 @@ from src.data.data_loader import DataLoader
 
 from src.config import Config
 from src.model.loss import transformer_train_loss
-from src.model.transformer import Encoder, Decoder
+from src.model.transformer import Transformer
+from src.model.transformer import create_look_ahead_mask, create_pad_mask
 from src.utils import get_bleu_score
 
 pad_idx = 0
+MAX_INFERENCE_LEN = 20
 keras = tf.keras
 PREFETCH = tf.data.experimental.AUTOTUNE
 sparse_categorical_crossentropy = keras.losses.sparse_categorical_crossentropy
@@ -53,8 +55,11 @@ vocab_size_ko = len(tokenizer_ko.word_index) + 1
 vocab_size_en = len(tokenizer_en.word_index) + 1
 
 # Model
-encoder = Encoder(vocab_size_en, **config.encoder['args'])
-decoder = Decoder(vocab_size_ko, **config.decoder['args'])
+# encoder = Encoder(vocab_size_en, **config.encoder['args'])
+# decoder = Decoder(vocab_size_ko, **config.decoder['args'])
+transformer = Transformer(target_vocab_size=vocab_size_ko,
+                          input_vocab_size=vocab_size_en,
+                          **config.transformer['args'])
 
 # Tensorboard
 log_writer = namedtuple('logWriter', ['train', 'test'])
@@ -70,8 +75,7 @@ Checkpoint = tf.train.Checkpoint
 CheckpointManager = tf.train.CheckpointManager
 ckpt = Checkpoint(step=tf.Variable(initial_value=0, dtype=tf.int64),
                   optimizer=optimizer,
-                  encoder=encoder,
-                  decoder=decoder)
+                  transformer=transformer)
 ckpt_manager = tf.train.CheckpointManager(checkpoint=ckpt,
                                           directory=config.ckpt_dir,
                                           max_to_keep=config.ckpt_max_keep)
@@ -96,29 +100,24 @@ def train_step(en_train, ko_train):
   Returns:
     loss: scalar
   """
-  seq_len_ko = ko_train.shape[1]
+  decoder_inputs = ko_train[:, :-1]
+  labels = ko_train[:, 1:]
 
   with tf.GradientTape() as tape:
-    attention_mask = encoder.create_pad_mask(en_train, pad_idx)
-    outputs_encoder = encoder(en_train,
-                              attention_mask=attention_mask,
-                              training=True)
+    enc_pad_mask = create_pad_mask(en_train, pad_idx)
+    dec_pad_mask = create_pad_mask(en_train, pad_idx)
+    look_ahead_mask = create_look_ahead_mask(decoder_inputs.shape[1])
+    self_attention_mask = create_pad_mask(decoder_inputs, pad_idx)
+    look_ahead_mask = tf.maximum(self_attention_mask, look_ahead_mask)
+    logits = transformer(inputs=(en_train, decoder_inputs),
+                         training=True,
+                         enc_pad_mask=enc_pad_mask,
+                         dec_pad_mask=dec_pad_mask,
+                         look_ahead_mask=look_ahead_mask)
 
-    # decoder's input 0 start from <start> token
-    logits = decoder(
-        inputs=ko_train,
-        outputs_encoder=outputs_encoder,
-        training=True,
-        attention_mask=decoder.create_pad_mask(ko_train,
-                                               en_train,
-                                               pad_idx=pad_idx),
-        look_ahead_mask=decoder.create_look_head_mask(ko_train, seq_len_ko),
-        self_attention_mask=decoder.create_pad_mask(ko_train, ko_train,
-                                                    pad_idx))
+    loss = transformer_train_loss(logits, labels, pad_idx)
 
-    loss = transformer_train_loss(logits, ko_train, pad_idx)
-
-  trainable_variables = encoder.trainable_variables + decoder.trainable_variables
+  trainable_variables = transformer.trainable_variables
   gradients = tape.gradient(loss, trainable_variables)
   optimizer.apply_gradients(zip(gradients, trainable_variables))
 
@@ -128,27 +127,25 @@ def train_step(en_train, ko_train):
 # @tf.function
 def inference(data):
   batch_size = data.shape[0]
-  attention_mask = encoder.create_pad_mask(data, pad_idx)
-  outputs_encoder = encoder(data, attention_mask=attention_mask, training=True)
 
   input_decoder = tf.expand_dims([tokenizer_en.word_index['<start>']] *
                                  batch_size, 1)
-  outputs_encoder = tf.convert_to_tensor(outputs_encoder, dtype=tf.float32)
-  seq_len_en = outputs_encoder.shape[2]
-  for t in range(seq_len_en):
-    input_decoder_shape_ = input_decoder.shape[1]
-    logits = decoder(input_decoder,
-                     outputs_encoder,
-                     training=False,
-                     attention_mask=decoder.create_pad_mask(q=input_decoder,
-                                                            k=data,
-                                                            pad_idx=pad_idx),
-                     look_ahead_mask=decoder.create_look_head_mask(
-                         input_decoder, input_decoder_shape_))
 
+  for i in range(MAX_INFERENCE_LEN):
+    enc_pad_mask = create_pad_mask(data, pad_idx)
+    dec_self_attention_mask = create_pad_mask(input_decoder, pad_idx)
+    look_ahead_mask = create_look_ahead_mask(input_decoder.shape[1])
+    look_ahead_mask = tf.maximum(dec_self_attention_mask, look_ahead_mask)
+    dec_pad_mask = create_pad_mask(data, pad_idx)
+
+    logits = transformer(inputs=(data, input_decoder),
+                         training=False,
+                         enc_pad_mask=enc_pad_mask,
+                         dec_pad_mask=dec_pad_mask,
+                         look_ahead_mask=look_ahead_mask)
+    logits = logits[:, -1, :]
     probs = tf.math.softmax(logits, axis=-1)
     preds = tf.argmax(probs, axis=-1)
-    preds = preds[:, -1]
     preds = tf.expand_dims(preds, 1)
     preds = tf.cast(preds, tf.int32)
     input_decoder = tf.concat([input_decoder, preds], axis=-1)
