@@ -89,7 +89,7 @@ else:
 
 
 # Training & Inference
-# @tf.function
+@tf.function
 def train_step(en_train, ko_train):
   """
 
@@ -124,7 +124,7 @@ def train_step(en_train, ko_train):
   return loss
 
 
-# @tf.function
+@tf.function
 def inference(data):
   batch_size = data.shape[0]
 
