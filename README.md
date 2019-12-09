@@ -1,4 +1,4 @@
-# Neural Machine Translation
+# My NLP playground
 
 ## Objectives
 1. Make flexible deeplearning project template
