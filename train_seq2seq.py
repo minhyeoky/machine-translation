@@ -61,7 +61,7 @@ decoder = Decoder(vocab_size_ko, **config.decoder['args'])
 optimizer = Adam(**config.optimizer['args'])
 
 
-# @tf.function
+@tf.function
 def train_step(ori_train, tar_train):
   loss = 0
   train_batch_size = config.batch_size
