@@ -25,10 +25,12 @@ logger.info('Parsing arguments')
 parser = argparse.ArgumentParser()
 parser.add_argument('--config_json', type=str, required=True)
 parser.add_argument('--data_path', type=str, required=True)
+parser.add_argument('--deu', type=bool, required=False, default=False)
 args = parser.parse_args()
 
 data_path = args.data_path
 config_json = args.config_json
+deu = args.deu
 
 # Configuration
 config = Config.from_json_file(config_json)

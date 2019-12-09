@@ -29,13 +29,14 @@ args = parser.parse_args()
 
 data_path = args.data_path
 config_json = args.config_json
+deu = args.deu
 
 # Configuration
 config = Config.from_json_file(config_json)
 logger.setLevel(config.log_level)
 
 # Dataloader & Dataset
-data_loader = DataLoader(data_path, **config.data_loader['args'])
+data_loader = DataLoader(data_path, **config.data_loader['args'], deu=deu)
 dataset_train = tf.data.Dataset.from_generator(
     data_loader.train_data_generator,
     output_types=(tf.int32, tf.int32)).shuffle(config.buffer_size).batch(
