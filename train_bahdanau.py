@@ -24,6 +24,7 @@ logger.info('Parsing arguments')
 parser = argparse.ArgumentParser()
 parser.add_argument('--config_json', type=str, required=True)
 parser.add_argument('--data_path', type=str, required=True)
+parser.add_argument('--deu', type=bool, required=False, default=False)
 args = parser.parse_args()
 
 data_path = args.data_path
@@ -48,10 +49,11 @@ dataset_test_iterator = iter(dataset_test)
 # Tokenizer
 logger.info('Getting Tokenizer')
 tokenizers = data_loader.tokenizer
-tokenizer_ko: tf.keras.preprocessing.text.Tokenizer = tokenizers.kor
-tokenizer_en: tf.keras.preprocessing.text.Tokenizer = tokenizers.eng
-vocab_size_ko = len(tokenizer_ko.word_index) + 1
-vocab_size_en = len(tokenizer_en.word_index) + 1
+tokenizer_ori: tf.keras.preprocessing.text.Tokenizer = tokenizers.ori
+tokenizer_tar: tf.keras.preprocessing.text.Tokenizer = tokenizers.tar
+
+vocab_size_ko = len(tokenizer_tar.word_index) + 1
+vocab_size_en = len(tokenizer_ori.word_index) + 1
 
 # Model
 encoder = Encoder(vocab_size_en, **config.encoder['args'])
@@ -87,39 +89,40 @@ else:
 
 # Training & Inference
 # @tf.function
-def train_step(en_train, ko_train):
+def train_step(ori_tarin, tar_train):
   loss = 0
-  train_batch_size = en_train.shape[0]
-  mask = tf.zeros_like(ko_train, dtype=tf.bool)
-  mask = tf.logical_or(mask, tf.cast(ko_train, tf.bool))
+  train_batch_size = ori_tarin.shape[0]
+  mask = tf.zeros_like(tar_train, dtype=tf.bool)
+  mask = tf.logical_or(mask, tf.cast(tar_train, tf.bool))
 
   with tf.GradientTape() as tape:
     initial_state = encoder.initial_state(train_batch_size)
-    inputs_encoder = (en_train, initial_state)
+    inputs_encoder = (ori_tarin, initial_state)
     outputs_encoder, h_encoder, c_encoder = encoder(inputs_encoder)
 
-    # hidden representation of en_train
+    # hidden representation of ori_tarin
     h_decoder, c_decoder = h_encoder, c_encoder
 
     # decoder's input 0 start from <start> token
-    input_decoder = tf.expand_dims([tokenizer_en.word_index['<start>']] *
+    input_decoder = tf.expand_dims([tokenizer_ori.word_index['<start>']] *
                                    train_batch_size, 1)    # [batch_size, 1]
 
     # t will be used for teacher forcing & train label & mask index
     # starts from 1 is convenient
-    for t in range(1, outputs_encoder.shape[1]):
+    len_tar = tar_train.shape[1]
+    for t in range(1, len_tar):
       initial_state = (h_decoder, c_decoder)
       inputs_decoder = (input_decoder, outputs_encoder, initial_state)
       logits, h_decoder, c_decoder = decoder(inputs_decoder)
 
-      y_t = ko_train[:, t]
+      y_t = tar_train[:, t]
       labels = tf.reshape(y_t, shape=(-1, 1))
       loss_t = sparse_categorical_crossentropy(labels, logits, from_logits=True)
       loss_t *= tf.cast(tf.reshape(mask[:, t], (-1,)), dtype=loss_t.dtype)
       loss += loss_t
 
       # Teacher forcing - at training time, only labels are fed
-      input_decoder = tf.expand_dims(ko_train[:, t], 1)    # [batch_size, 1]
+      input_decoder = tf.expand_dims(tar_train[:, t], 1)    # [batch_size, 1]
 
     loss = tf.reduce_mean(loss)
 
@@ -140,7 +143,7 @@ def inference(data):
 
   h_decoder, c_decoder = h_encoder, c_encoder
 
-  input_decoder = tf.expand_dims([tokenizer_en.word_index['<start>']] *
+  input_decoder = tf.expand_dims([tokenizer_ori.word_index['<start>']] *
                                  inference_size, 1)
   max_timestep = outputs_encoder.shape[1]
 
@@ -178,16 +181,16 @@ for e in range(config.epochs):
       logger.info(f'  Time: {train_step_time : 0.2f}')
 
       logger.info('Train Inferences')
-      original_eng_text = tokenizer_en.sequences_to_texts(en.numpy()[:2])
+      original_eng_text = tokenizer_ori.sequences_to_texts(en.numpy()[:2])
       logger.info(f'  original eng text: {original_eng_text}')
       ko_inferenced = inference(en)
-      original_kor_text = tokenizer_ko.sequences_to_texts(ko.numpy()[:2])
+      original_kor_text = tokenizer_tar.sequences_to_texts(ko.numpy()[:2])
       logger.info(f'  original kor text: {original_kor_text}')
-      inferenced_kor_text = tokenizer_ko.sequences_to_texts(
+      inferenced_kor_text = tokenizer_tar.sequences_to_texts(
           ko_inferenced.numpy()[:2])
       logger.info(f'  inferenced kor text: {inferenced_kor_text}')
-      ko = tokenizer_ko.sequences_to_texts(ko.numpy())
-      ko_inferenced = tokenizer_ko.sequences_to_texts(ko_inferenced.numpy())
+      ko = tokenizer_tar.sequences_to_texts(ko.numpy())
+      ko_inferenced = tokenizer_tar.sequences_to_texts(ko_inferenced.numpy())
       bleu_train = get_bleu_score(ko, ko_inferenced)
       logger.info(f'  mean bleu score: {bleu_train}')
 
@@ -199,16 +202,16 @@ for e in range(config.epochs):
 
       logger.info(f'Test Inferences')
       en, ko = next(dataset_test_iterator)
-      original_eng_text = tokenizer_en.sequences_to_texts(en.numpy())
+      original_eng_text = tokenizer_ori.sequences_to_texts(en.numpy())
       logger.info(f'  original eng text: {original_eng_text}')
       ko_inferenced = inference(en)
-      original_kor_text = tokenizer_ko.sequences_to_texts(ko.numpy())
+      original_kor_text = tokenizer_tar.sequences_to_texts(ko.numpy())
       logger.info(f'  original kor text: {original_kor_text}')
-      inferenced_kor_text = tokenizer_ko.sequences_to_texts(
+      inferenced_kor_text = tokenizer_tar.sequences_to_texts(
           ko_inferenced.numpy())
       logger.info(f'  inferenced kor text: {inferenced_kor_text}')
-      ko = tokenizer_ko.sequences_to_texts(ko.numpy())
-      ko_inferenced = tokenizer_ko.sequences_to_texts(ko_inferenced.numpy())
+      ko = tokenizer_tar.sequences_to_texts(ko.numpy())
+      ko_inferenced = tokenizer_tar.sequences_to_texts(ko_inferenced.numpy())
       bleu_test = get_bleu_score(ko, ko_inferenced)
       logger.info(f'  mean bleu score: {bleu_test}')
 

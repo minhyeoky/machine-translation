@@ -7,9 +7,13 @@ TAG="nmt"
 DOCKER_DIR="/tf"
 MODEL_NAME="seq2seq"
 DATA_PATH=data/input/aihub_kor-eng/1.구어체.xlsx
+DEU=false
 
-while getopts "g:dj:v:m:" opt; do
+while getopts "g:dj:v:m:p:u" opt; do
   case "$opt" in
+  p)
+    DATA_PATH="$OPTARG"
+    ;;
   d)
     USE_DOCKER=true
     ;;
@@ -25,6 +29,9 @@ while getopts "g:dj:v:m:" opt; do
   m)
     MODEL_NAME="$OPTARG"
     ;;
+  u)
+    DEU=true
+    ;;
   *)
     echo "Invalid arguments are provieded"
     ;;
@@ -34,15 +41,15 @@ done
 
 
 if [[ $MODEL_NAME == "seq2seq" ]]; then
-  RUN_TRAIN="python train_seq2seq.py --config_json=$DOCKER_DIR/$CONFIG_JSON --data_path=$DATA_PATH"
+  RUN_TRAIN="python train_seq2seq.py --config_json=$DOCKER_DIR/$CONFIG_JSON --data_path=$DATA_PATH --deu=$DEU"
 elif [[ $MODEL_NAME == "bahdanau" ]]; then
-  RUN_TRAIN="python train_bahdanau.py --config_json=$DOCKER_DIR/$CONFIG_JSON --data_path=$DATA_PATH"
+  RUN_TRAIN="python train_bahdanau.py --config_json=$DOCKER_DIR/$CONFIG_JSON --data_path=$DATA_PATH --deu=$DEU"
 elif [[ $MODEL_NAME == "seq2seq_bidirectional" ]]; then
-  RUN_TRAIN="python train_seq2seq_bidirectional.py --config_json=$DOCKER_DIR/$CONFIG_JSON --data_path=$DATA_PATH"
+  RUN_TRAIN="python train_seq2seq_bidirectional.py --config_json=$DOCKER_DIR/$CONFIG_JSON --data_path=$DATA_PATH --deu=$DEU"
 elif [[ $MODEL_NAME == "bahdanau_bidirectional" ]]; then
-  RUN_TRAIN="python train_bahdanau_bidirectional.py --config_json=$DOCKER_DIR/$CONFIG_JSON --data_path=$DATA_PATH"
+  RUN_TRAIN="python train_bahdanau_bidirectional.py --config_json=$DOCKER_DIR/$CONFIG_JSON --data_path=$DATA_PATH --deu=$DEU"
 elif [[ $MODEL_NAME == "transformer" ]]; then
-  RUN_TRAIN="python train_transformer.py --config_json=$DOCKER_DIR/$CONFIG_JSON --data_path=$DATA_PATH"
+  RUN_TRAIN="python train_transformer.py --config_json=$DOCKER_DIR/$CONFIG_JSON --data_path=$DATA_PATH --deu=$DEU"
 fi
 
 

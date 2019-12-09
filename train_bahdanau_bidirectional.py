@@ -22,6 +22,7 @@ logger.info('Parsing arguments')
 parser = argparse.ArgumentParser()
 parser.add_argument('--config_json', type=str, required=True)
 parser.add_argument('--data_path', type=str, required=True)
+parser.add_argument('--deu', type=bool, required=False, default=False)
 args = parser.parse_args()
 
 data_path = args.data_path
@@ -46,10 +47,10 @@ dataset_test_iterator = iter(dataset_test)
 # Tokenizer
 logger.info('Getting Tokenizer')
 tokenizers = data_loader.tokenizer
-tokenizer_ko: tf.keras.preprocessing.text.Tokenizer = tokenizers.kor
-tokenizer_en: tf.keras.preprocessing.text.Tokenizer = tokenizers.eng
-vocab_size_ko = data_loader.kor_vocab_size
-vocab_size_en = data_loader.eng_vocab_size
+tokenizer_ori: tf.keras.preprocessing.text.Tokenizer = tokenizers.ori
+tokenizer_tar: tf.keras.preprocessing.text.Tokenizer = tokenizers.tar
+vocab_size_ko = data_loader.tar_vocab_size
+vocab_size_en = data_loader.ori_vocab_size
 
 # Model
 encoder = Encoder(vocab_size_en, **config.encoder['args'])
@@ -60,27 +61,28 @@ optimizer = Adam(**config.optimizer['args'])
 
 
 @tf.function
-def train_step(en_train, ko_train):
+def train_step(ori_train, tar_train):
   loss = 0
   train_batch_size = config.batch_size
-  mask = tf.zeros_like(ko_train, dtype=tf.bool)
-  mask |= tf.cast(ko_train, tf.bool)
+  mask = tf.zeros_like(tar_train, dtype=tf.bool)
+  mask |= tf.cast(tar_train, tf.bool)
 
   with tf.GradientTape() as tape:
     initial_state = encoder.initial_state(train_batch_size)
-    inputs_encoder = (en_train, initial_state)
+    inputs_encoder = (ori_train, initial_state)
     outputs_encoder, h_f_encoder, h_b_encoder, c_f_encoder, c_b_encoder = encoder(
         inputs_encoder)
 
-    # hidden representation of en_train
+    # hidden representation of ori_tarin
     h_decoder = tf.concat([h_f_encoder, h_b_encoder], axis=-1)
     c_decoder = tf.concat([c_f_encoder, c_b_encoder], axis=-1)
 
     # decoder's input 0 start from <start> token
-    input_decoder = tf.expand_dims([tokenizer_en.word_index['<start>']] *
+    input_decoder = tf.expand_dims([tokenizer_ori.word_index['<start>']] *
                                    train_batch_size, 1)    # [batch_size, 1]
 
-    for time_step in range(1, outputs_encoder.shape[1]):
+    len_tar = tar_train.shape[1]
+    for time_step in range(1, len_tar):
       initial_state = (h_decoder, c_decoder)
       inputs_decoder = (input_decoder, outputs_encoder, initial_state)
       logits, h_decoder, c_decoder = decoder(inputs_decoder)
@@ -88,7 +90,7 @@ def train_step(en_train, ko_train):
       # logits - decoder's prediction at timestep t-1,
       # they are corresponding to encoder's input at timestep t
       # total loss is summation of every timestep's losses
-      labels = tf.reshape(ko_train[:, time_step], shape=(-1, 1))
+      labels = tf.reshape(tar_train[:, time_step], shape=(-1, 1))
       time_loss = keras.losses.sparse_categorical_crossentropy(y_true=labels,
                                                                y_pred=logits,
                                                                from_logits=True)
@@ -96,7 +98,7 @@ def train_step(en_train, ko_train):
                            dtype=tf.float32)
       loss += time_loss
       # Teacher forcing - at training time, only labels are fed
-      input_decoder = tf.expand_dims(ko_train[:, time_step],
+      input_decoder = tf.expand_dims(tar_train[:, time_step],
                                      1)    # [batch_size, 1]
     loss = tf.reduce_mean(loss)
 
@@ -119,7 +121,7 @@ def inference(inference_data):
   h_decoder = tf.concat([h_f_encoder, h_b_encoder], axis=-1)
   c_decoder = tf.concat([c_f_encoder, c_b_encoder], axis=-1)
 
-  input_decoder = tf.expand_dims([tokenizer_en.word_index['<start>']] *
+  input_decoder = tf.expand_dims([tokenizer_ori.word_index['<start>']] *
                                  inference_size,
                                  axis=1)
 
@@ -187,16 +189,16 @@ for epoch in range(config.epochs):
       logger.info(f'  Time: {train_step_time : 0.2f}')
 
       logger.info('Train Inferences')
-      original_eng_text = tokenizer_en.sequences_to_texts(en.numpy()[:2])
+      original_eng_text = tokenizer_ori.sequences_to_texts(en.numpy()[:2])
       logger.info(f'  original eng text: {original_eng_text}')
       ko_inferenced = inference(en)
-      original_kor_text = tokenizer_ko.sequences_to_texts(ko.numpy()[:2])
+      original_kor_text = tokenizer_tar.sequences_to_texts(ko.numpy()[:2])
       logger.info(f'  original kor text: {original_kor_text}')
-      inferenced_kor_text = tokenizer_ko.sequences_to_texts(
+      inferenced_kor_text = tokenizer_tar.sequences_to_texts(
           ko_inferenced.numpy()[:2])
       logger.info(f'  inferenced kor text: {inferenced_kor_text}')
-      ko = tokenizer_ko.sequences_to_texts(ko.numpy())
-      ko_inferenced = tokenizer_ko.sequences_to_texts(ko_inferenced.numpy())
+      ko = tokenizer_tar.sequences_to_texts(ko.numpy())
+      ko_inferenced = tokenizer_tar.sequences_to_texts(ko_inferenced.numpy())
       bleu_train = get_bleu_score(ko, ko_inferenced)
       logger.info(f'  mean bleu score: {bleu_train}')
 
@@ -208,16 +210,16 @@ for epoch in range(config.epochs):
 
       logger.info(f'Test Inferences')
       en, ko = next(dataset_test_iterator)
-      original_eng_text = tokenizer_en.sequences_to_texts(en.numpy())
+      original_eng_text = tokenizer_ori.sequences_to_texts(en.numpy())
       logger.info(f'  original eng text: {original_eng_text}')
       ko_inferenced = inference(en)
-      original_kor_text = tokenizer_ko.sequences_to_texts(ko.numpy())
+      original_kor_text = tokenizer_tar.sequences_to_texts(ko.numpy())
       logger.info(f'  original kor text: {original_kor_text}')
-      inferenced_kor_text = tokenizer_ko.sequences_to_texts(
+      inferenced_kor_text = tokenizer_tar.sequences_to_texts(
           ko_inferenced.numpy())
       logger.info(f'  inferenced kor text: {inferenced_kor_text}')
-      ko = tokenizer_ko.sequences_to_texts(ko.numpy())
-      ko_inferenced = tokenizer_ko.sequences_to_texts(ko_inferenced.numpy())
+      ko = tokenizer_tar.sequences_to_texts(ko.numpy())
+      ko_inferenced = tokenizer_tar.sequences_to_texts(ko_inferenced.numpy())
       bleu_test = get_bleu_score(ko, ko_inferenced)
       logger.info(f'  mean bleu score: {bleu_test}')
 

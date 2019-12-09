@@ -1,62 +1,69 @@
 from typing import NamedTuple
+
 import pandas as pd
-import logging
 import tensorflow as tf
 from sklearn.model_selection import train_test_split
 
 from .base import DataLoaderBase
-from ..preprocessor.korean import KorPreprocessor
 from ..preprocessor.english import EngPreprocessor
+from ..preprocessor.german import GerPreprocessor
+from ..preprocessor.korean import KorPreprocessor
+
+OOV_TOKEN = '<unk>'
 
 logger = tf.get_logger()
 keras = tf.keras
 
 
 class Data(NamedTuple):
-  kor: list
-  eng: list
+  ori: list
+  tar: list
 
   def __len__(self):
-    l_k = len(self.kor)
-    l_e = len(self.eng)
-    assert l_k == l_e
-    return l_k
+    l_o = len(self.ori)
+    l_t = len(self.tar)
+    assert l_t == l_o
+    return l_t
 
 
 class DataLoader(DataLoaderBase):
 
-  def __init__(self, data_path, n_data=None, validation_split=0.1):
+  def __init__(self, data_path, n_data=None, validation_split=0.1, deu=False):
     super(DataLoader, self).__init__()
+    self.deu = deu
     logger.info('Initializing Dataloader')
-    self.preprocessor = NamedTuple('Preprocessor', [('kor', KorPreprocessor),
-                                                    ('eng', EngPreprocessor)])
-    self.preprocessor.kor = KorPreprocessor()
-    self.preprocessor.eng = EngPreprocessor()
+    self.preprocessor = NamedTuple('Preprocessor', [('ori', EngPreprocessor),
+                                                    ('tar', GerPreprocessor)])
+    self.preprocessor.ori = EngPreprocessor()
+    if deu:
+      self.preprocessor.tar = GerPreprocessor()
+    else:
+      self.preprocessor.tar = KorPreprocessor()
 
     self.data_path = data_path
     self.n_data = n_data
     self.test_size = validation_split
     self.data_train = None
     self.data_test = None
-    self.eng_vocab_size = None
-    self.kor_vocab_size = None
+    self.ori_vocab_size = None
+    self.tar_vocab_size = None
 
     tokenizer = keras.preprocessing.text.Tokenizer
 
-    self.tokenizer = NamedTuple('Tokenizer', [('kor', tokenizer),
-                                              ('eng', tokenizer)])
+    self.tokenizer = NamedTuple('Tokenizer', [('ori', tokenizer),
+                                              ('tar', tokenizer)])
 
-    self.tokenizer.kor = tokenizer(num_words=None,
+    self.tokenizer.ori = tokenizer(num_words=None,
                                    filters='',
                                    lower=True,
                                    split=' ',
-                                   oov_token='<unk>')
+                                   oov_token=OOV_TOKEN)
 
-    self.tokenizer.eng = tokenizer(num_words=None,
+    self.tokenizer.tar = tokenizer(num_words=None,
                                    filters='',
                                    lower=True,
                                    split=' ',
-                                   oov_token='<unk>')
+                                   oov_token=OOV_TOKEN)
 
     self.build()
 
@@ -64,14 +71,14 @@ class DataLoader(DataLoaderBase):
     self._load_data()
 
   def train_data_generator(self):
-    en, ko = self.data_train.eng, self.data_train.kor
-    for e, k in zip(en, ko):
-      yield e, k
+    ori, tar = self.data_train.ori, self.data_train.tar
+    for o, t in zip(ori, tar):
+      yield o, t
 
   def test_data_generator(self):
-    en, ko = self.data_test.eng, self.data_test.kor
-    for e, k in zip(en, ko):
-      yield e, k
+    ori, tar = self.data_test.ori, self.data_test.tar
+    for o, t in zip(ori, tar):
+      yield o, t
 
   @staticmethod
   def _tokenize(texts, tokenizer, fit):
@@ -85,40 +92,49 @@ class DataLoader(DataLoaderBase):
 
   def _load_data(self):
     logger.info(f'Loading data from {self.data_path}')
-    data = pd.read_excel(self.data_path, sheet_name='Sheet1')
-    logger.info(data.head())
-
     _data = []
-    for idx, row in data.iterrows():
-      eng = row['en']
-      kor = row['ko']
+    if self.deu:
+      with open(self.data_path, 'r', encoding='utf8') as f:
+        for line in f:
+          line = line.split('\t')
+          ori = self.preprocessor.ori.preprocess(line[0])
+          tar = self.preprocessor.tar.preprocess(line[1])
+          _data.append([ori, tar])
+          if self.n_data:
+            if self.n_data == len(_data):
+              break
+    else:
+      data = pd.read_excel(self.data_path, sheet_name='Sheet1')
+      for idx, row in data.iterrows():
+        en = row['en']
+        ko = row['ko']
 
-      eng = self.preprocessor.eng.preprocess(eng)
-      kor = self.preprocessor.kor.preprocess(kor)
+        en = self.preprocessor.ori.preprocess(en)
+        ko = self.preprocessor.tar.preprocess(ko)
 
-      _data.append([eng, kor])
+        _data.append([en, ko])
 
-      if self.n_data:
-        if self.n_data == len(_data):
-          break
+        if self.n_data:
+          if self.n_data == len(_data):
+            break
 
     _data_train, _data_test = train_test_split(_data,
                                                test_size=self.test_size,
                                                shuffle=False)
-    en_train, ko_train = zip(*_data_train)
-    en_test, ko_test = zip(*_data_test)
+    ori_train, tar_train = zip(*_data_train)
+    ori_test, tar_test = zip(*_data_test)
 
-    en_train = self._tokenize(en_train, self.tokenizer.eng, fit=True)
-    ko_train = self._tokenize(ko_train, self.tokenizer.kor, fit=True)
+    ori_train = self._tokenize(ori_train, self.tokenizer.ori, fit=True)
+    tar_train = self._tokenize(tar_train, self.tokenizer.tar, fit=True)
 
-    en_test = self._tokenize(en_test, self.tokenizer.eng, fit=False)
-    ko_test = self._tokenize(ko_test, self.tokenizer.kor, fit=False)
+    ori_test = self._tokenize(ori_test, self.tokenizer.ori, fit=False)
+    tar_test = self._tokenize(tar_test, self.tokenizer.tar, fit=False)
 
-    self.eng_vocab_size = len(self.tokenizer.eng.word_index) + 1
-    self.kor_vocab_size = len(self.tokenizer.kor.word_index) + 1
+    self.ori_vocab_size = len(self.tokenizer.ori.word_index) + 1
+    self.tar_vocab_size = len(self.tokenizer.tar.word_index) + 1
 
-    logger.info(f' English vocab size: {self.eng_vocab_size}')
-    logger.info(f' Korean vocab size: {self.kor_vocab_size}')
+    logger.info(f' Original vocab size: {self.ori_vocab_size}')
+    logger.info(f' Target vocab size: {self.tar_vocab_size}')
 
-    self.data_train = Data(kor=ko_train, eng=en_train)
-    self.data_test = Data(kor=ko_test, eng=en_test)
+    self.data_train = Data(ori=ori_train, tar=tar_train)
+    self.data_test = Data(ori=ori_test, tar=tar_test)

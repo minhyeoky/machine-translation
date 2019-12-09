@@ -9,7 +9,7 @@
     "ckpt_max_keep": 10
   },
   "train": {
-    "epochs": 20,
+    "epochs": 200,
     "optimizer": {
       "type": 0,
       "args": {
@@ -40,7 +40,7 @@
   "data_loader": {
     "batch_size": 32,
     "args": {
-      "n_data": null,
+      "n_data": 100,
       "validation_split": 0.1
     }
   }

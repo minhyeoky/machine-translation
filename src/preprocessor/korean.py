@@ -1,5 +1,4 @@
 from konlpy.tag import Mecab
-from collections import namedtuple
 import re
 from .base import PreprocessorBase
 

@@ -74,6 +74,7 @@ class ScaledDotProductAttention(Layer):
     """
     # `(batch_size, seq_q, seq_k)`
     d_model = tf.cast(q.shape[2], tf.float32)
+    d_model_v = v.shape[3]
     score = tf.matmul(q, k, transpose_b=True)
     score_logits = tf.divide(score, tf.sqrt(d_model))
 
@@ -87,18 +88,15 @@ class ScaledDotProductAttention(Layer):
       score_logits = score_logits + look_ahead_mask
 
     # softmax function on the seq_k.
-    # shape == `(batch_size, seq_q, seq_k)`
     attention_weights = tf.math.softmax(score_logits, axis=-1)
     batch_size = q.shape[0]
     n_head = q.shape[1]
     seq_q = q.shape[2]
     seq_k = k.shape[2]
-
     assert attention_weights.shape == (batch_size, n_head, seq_q, seq_k)
+    assert v.shape == (batch_size, n_head, seq_k, d_model_v)
 
-    # context vector shape == `(batch_size, seq_q, d_model)`
     context_vector = tf.matmul(attention_weights, v)
-    d_model_v = v.shape[3]
     assert context_vector.shape == (batch_size, n_head, seq_q, d_model_v)
 
     return context_vector, attention_weights
@@ -118,6 +116,16 @@ class MultiHeadAttention(Layer):
     self.Wo = Dense(units=d_model, activation=None)
     self.dh = d_model // n_head
     self.scaled_dot_product_attention = ScaledDotProductAttention()
+
+  def split_heads(self, x):
+    batch_size = x.shape[0]
+    seq_len = x.shape[1]
+    x = tf.transpose(tf.reshape(x,
+                                shape=(batch_size, seq_len, self.n_head,
+                                       self.dh)),
+                     perm=[0, 2, 1, 3])
+    assert x.shape == (batch_size, self.n_head, seq_len, self.dh)
+    return x
 
   def __call__(self,
                query,
@@ -143,8 +151,6 @@ class MultiHeadAttention(Layer):
     # query shape == (batch_size, seq_q * d_model)
     batch_size = query.shape[0]
     seq_q = query.shape[1]
-    seq_k = keys.shape[1]
-    seq_v = values.shape[1]
 
     # Linear projection
     query = self.Wq(query)
@@ -152,19 +158,9 @@ class MultiHeadAttention(Layer):
     values = self.Wv(values)
 
     # query_with_heads, shape == `(batch_size, n_head, seq_q, d_model)`
-    query_with_heads = tf.reshape(query,
-                                  shape=(batch_size, seq_q, self.n_head,
-                                         self.dh))
-    query_with_heads = tf.transpose(query_with_heads, perm=[0, 2, 1, 3])
-
-    keys_with_heads = tf.reshape(keys,
-                                 shape=(batch_size, seq_k, self.n_head,
-                                        self.dh))
-    keys_with_heads = tf.transpose(keys_with_heads, perm=[0, 2, 1, 3])
-    values_with_heads = tf.reshape(values,
-                                   shape=(batch_size, seq_v, self.n_head,
-                                          self.dh))
-    values_with_heads = tf.transpose(values_with_heads, perm=[0, 2, 1, 3])
+    query_with_heads = self.split_heads(query)
+    keys_with_heads = self.split_heads(keys)
+    values_with_heads = self.split_heads(values)
 
     context_vector, attention_weights = self.scaled_dot_product_attention(
         query_with_heads,
@@ -172,6 +168,7 @@ class MultiHeadAttention(Layer):
         values_with_heads,
         pad_mask=pad_mask,
         look_ahead_mask=look_ahead_mask)
+
     assert context_vector.shape == (batch_size, self.n_head, seq_q, self.dh)
     context_vector = tf.transpose(context_vector, perm=[0, 2, 1, 3])
     assert context_vector.shape == (batch_size, seq_q, self.n_head, self.dh)
@@ -391,7 +388,7 @@ class PositionalEmbedding(Layer):
     if not self.learned_pos_enc:
       self.pos_enc = positional_encoding(seq_len, self.d_model)
     embedded_inputs = self.embedding(inputs)
-    # embedded_inputs *= tf.sqrt(tf.cast(self.d_model, tf.float32)) # ??
+    embedded_inputs *= tf.sqrt(tf.cast(self.d_model, tf.float32))    # ??
     embedded_inputs = embedded_inputs + self.pos_enc
     assert embedded_inputs.shape == inputs.shape + (self.d_model,)
     return embedded_inputs

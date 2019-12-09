@@ -22,17 +22,19 @@ logger.info('Parsing arguments')
 parser = argparse.ArgumentParser()
 parser.add_argument('--config_json', type=str, required=True)
 parser.add_argument('--data_path', type=str, required=True)
+parser.add_argument('--deu', type=bool, required=False, default=False)
 args = parser.parse_args()
 
 data_path = args.data_path
 config_json = args.config_json
+deu = args.deu
 
 # Config
 config = Config.from_json_file(config_json)
 logger.setLevel(config.log_level)
 
 # DataLoader
-data_loader = DataLoader(data_path, **config.data_loader['args'])
+data_loader = DataLoader(data_path, **config.data_loader['args'], deu=deu)
 dataset_train = tf.data.Dataset.from_generator(
     data_loader.train_data_generator,
     output_types=(tf.int32, tf.int32)).shuffle(config.buffer_size).batch(
@@ -46,8 +48,8 @@ dataset_test_iterator = iter(dataset_test)
 # Tokenizer
 logger.info('Getting Tokenizer')
 tokenizers = data_loader.tokenizer
-tokenizer_ko: tf.keras.preprocessing.text.Tokenizer = tokenizers.kor
-tokenizer_en: tf.keras.preprocessing.text.Tokenizer = tokenizers.eng
+tokenizer_en: tf.keras.preprocessing.text.Tokenizer = tokenizers.ori
+tokenizer_ko: tf.keras.preprocessing.text.Tokenizer = tokenizers.tar
 vocab_size_ko = len(tokenizer_ko.word_index) + 1
 vocab_size_en = len(tokenizer_en.word_index) + 1
 
@@ -59,26 +61,27 @@ decoder = Decoder(vocab_size_ko, **config.decoder['args'])
 optimizer = Adam(**config.optimizer['args'])
 
 
-@tf.function
-def train_step(en_train, ko_train):
+# @tf.function
+def train_step(ori_train, tar_train):
   loss = 0
   train_batch_size = config.batch_size
-  mask = tf.zeros_like(ko_train, dtype=tf.bool)
-  mask |= tf.cast(ko_train, tf.bool)
+  mask = tf.zeros_like(tar_train, dtype=tf.bool)
+  mask |= tf.cast(tar_train, tf.bool)
 
   with tf.GradientTape() as tape:
     initial_state = encoder.initial_state(train_batch_size)
-    inputs_encoder = (en_train, initial_state)
+    inputs_encoder = (ori_train, initial_state)
     outputs_encoder, h_encoder, c_encoder = encoder(inputs_encoder)
 
-    # hidden representation of en_train
+    # hidden representation of ori_tarin
     h_decoder, c_decoder = h_encoder, c_encoder
 
     # decoder's input 0 start from <start> token
     input_decoder = tf.expand_dims([tokenizer_en.word_index['<start>']] *
                                    train_batch_size, 1)    # [batch_size, 1]
 
-    for time_step in range(1, outputs_encoder.shape[1]):
+    len_tar = tar_train.shape[1]
+    for time_step in range(1, len_tar):
       initial_state = (h_decoder, c_decoder)
       inputs_decoder = (input_decoder, initial_state)
       logits, h_decoder, c_decoder = decoder(inputs_decoder)
@@ -86,7 +89,7 @@ def train_step(en_train, ko_train):
       # logits - decoder's prediction at timestep t-1,
       # they are corresponding to encoder's input at timestep t
       # total loss is summation of every timestep's losses
-      labels = tf.reshape(ko_train[:, time_step], shape=(-1, 1))
+      labels = tf.reshape(tar_train[:, time_step], shape=(-1, 1))
       time_loss = keras.losses.sparse_categorical_crossentropy(y_true=labels,
                                                                y_pred=logits,
                                                                from_logits=True)
@@ -94,7 +97,7 @@ def train_step(en_train, ko_train):
                            dtype=tf.float32)
       loss += time_loss
       # Teacher forcing - at training time, only labels are fed
-      input_decoder = tf.expand_dims(ko_train[:, time_step],
+      input_decoder = tf.expand_dims(tar_train[:, time_step],
                                      1)    # [batch_size, 1]
     loss = tf.reduce_mean(loss)
 

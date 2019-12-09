@@ -49,16 +49,16 @@ dataset_test_iterator = iter(dataset_test)
 # Tokenizer
 logger.info('Getting Tokenizer')
 tokenizers = data_loader.tokenizer
-tokenizer_ko: tf.keras.preprocessing.text.Tokenizer = tokenizers.kor
-tokenizer_en: tf.keras.preprocessing.text.Tokenizer = tokenizers.eng
-vocab_size_ko = len(tokenizer_ko.word_index) + 1
-vocab_size_en = len(tokenizer_en.word_index) + 1
+tokenizer_ori: tf.keras.preprocessing.text.Tokenizer = tokenizers.ori
+tokenizer_tar: tf.keras.preprocessing.text.Tokenizer = tokenizers.tar
+vocab_size_tar = len(tokenizer_tar.word_index) + 1
+vocab_size_ori = len(tokenizer_ori.word_index) + 1
 
 # Model
-# encoder = Encoder(vocab_size_en, **config.encoder['args'])
-# decoder = Decoder(vocab_size_ko, **config.decoder['args'])
-transformer = Transformer(target_vocab_size=vocab_size_ko,
-                          input_vocab_size=vocab_size_en,
+# encoder = Encoder(vocab_size_ori, **config.encoder['args'])
+# decoder = Decoder(vocab_size_tar, **config.decoder['args'])
+transformer = Transformer(target_vocab_size=vocab_size_tar,
+                          input_vocab_size=vocab_size_ori,
                           **config.transformer['args'])
 
 # Tensorboard
@@ -90,26 +90,26 @@ else:
 
 # Training & Inference
 @tf.function
-def train_step(en_train, ko_train):
+def train_step(ori_train, tar_train):
   """
 
   Args:
-    en_train: `(batch_size, seq_len_en)`
-    ko_train: `(batch_size, seq_len_ko)`
+    ori_train: `(batch_size, seq_len_en)`
+    tar_train: `(batch_size, seq_len_ko)`
 
   Returns:
     loss: scalar
   """
-  decoder_inputs = ko_train[:, :-1]
-  labels = ko_train[:, 1:]
+  decoder_inputs = tar_train[:, :-1]
+  labels = tar_train[:, 1:]
 
   with tf.GradientTape() as tape:
-    enc_pad_mask = create_pad_mask(en_train, pad_idx)
-    dec_pad_mask = create_pad_mask(en_train, pad_idx)
+    enc_pad_mask = create_pad_mask(ori_train, pad_idx)
+    dec_pad_mask = create_pad_mask(ori_train, pad_idx)
     look_ahead_mask = create_look_ahead_mask(decoder_inputs.shape[1])
     self_attention_mask = create_pad_mask(decoder_inputs, pad_idx)
     look_ahead_mask = tf.maximum(self_attention_mask, look_ahead_mask)
-    logits = transformer(inputs=(en_train, decoder_inputs),
+    logits = transformer(inputs=(ori_train, decoder_inputs),
                          training=True,
                          enc_pad_mask=enc_pad_mask,
                          dec_pad_mask=dec_pad_mask,
@@ -128,7 +128,7 @@ def train_step(en_train, ko_train):
 def inference(data):
   batch_size = data.shape[0]
 
-  input_decoder = tf.expand_dims([tokenizer_en.word_index['<start>']] *
+  input_decoder = tf.expand_dims([tokenizer_ori.word_index['<start>']] *
                                  batch_size, 1)
 
   for i in range(MAX_INFERENCE_LEN):
@@ -171,16 +171,16 @@ for e in range(config.epochs):
       logger.info(f'  Time: {train_step_time : 0.2f}')
 
       logger.info('Train Inferences')
-      original_eng_text = tokenizer_en.sequences_to_texts(en.numpy()[:2])
+      original_eng_text = tokenizer_ori.sequences_to_texts(en.numpy()[:2])
       logger.info(f'  original eng text: {original_eng_text}')
       ko_inferenced = inference(en)
-      original_kor_text = tokenizer_ko.sequences_to_texts(ko.numpy()[:2])
+      original_kor_text = tokenizer_tar.sequences_to_texts(ko.numpy()[:2])
       logger.info(f'  original kor text: {original_kor_text}')
-      inferenced_kor_text = tokenizer_ko.sequences_to_texts(
+      inferenced_kor_text = tokenizer_tar.sequences_to_texts(
           ko_inferenced.numpy()[:2])
       logger.info(f'  inferenced kor text: {inferenced_kor_text}')
-      ko = tokenizer_ko.sequences_to_texts(ko.numpy())
-      ko_inferenced = tokenizer_ko.sequences_to_texts(ko_inferenced.numpy())
+      ko = tokenizer_tar.sequences_to_texts(ko.numpy())
+      ko_inferenced = tokenizer_tar.sequences_to_texts(ko_inferenced.numpy())
       bleu_train = get_bleu_score(ko, ko_inferenced)
       logger.info(f'  mean bleu score: {bleu_train}')
 
@@ -192,16 +192,16 @@ for e in range(config.epochs):
 
       logger.info(f'Test Inferences')
       en, ko = next(dataset_test_iterator)
-      original_eng_text = tokenizer_en.sequences_to_texts(en.numpy())
+      original_eng_text = tokenizer_ori.sequences_to_texts(en.numpy())
       logger.info(f'  original eng text: {original_eng_text}')
       ko_inferenced = inference(en)
-      original_kor_text = tokenizer_ko.sequences_to_texts(ko.numpy())
+      original_kor_text = tokenizer_tar.sequences_to_texts(ko.numpy())
       logger.info(f'  original kor text: {original_kor_text}')
-      inferenced_kor_text = tokenizer_ko.sequences_to_texts(
+      inferenced_kor_text = tokenizer_tar.sequences_to_texts(
           ko_inferenced.numpy())
       logger.info(f'  inferenced kor text: {inferenced_kor_text}')
-      ko = tokenizer_ko.sequences_to_texts(ko.numpy())
-      ko_inferenced = tokenizer_ko.sequences_to_texts(ko_inferenced.numpy())
+      ko = tokenizer_tar.sequences_to_texts(ko.numpy())
+      ko_inferenced = tokenizer_tar.sequences_to_texts(ko_inferenced.numpy())
       bleu_test = get_bleu_score(ko, ko_inferenced)
       logger.info(f'  mean bleu score: {bleu_test}')
 

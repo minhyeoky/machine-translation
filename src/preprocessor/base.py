@@ -31,18 +31,18 @@ class PreprocessorBase(metaclass=ABCMeta):
     s = s.lower()
     s = s.strip()
 
-    s = re.sub(r'([?.!,])', r' \1', s)
+    s = re.sub(r'([?.!,¿])', r' \1', s)
     s = re.sub(r'[" "]', ' ', s)
     return s
 
   @staticmethod
   def _normalize(s, form='NFC'):
     """
-        Unicode normalization
-        :param s: sentence
-        :param form:
-            https://www.wikiwand.com/ko/%EC%9C%A0%EB%8B%88%EC%BD%94%EB%93%9C_%EC%A0%95%EA%B7%9C%ED%99%94
-        """
+      Unicode normalization
+      :param s: sentence
+      :param form:
+          https://www.wikiwand.com/ko/%EC%9C%A0%EB%8B%88%EC%BD%94%EB%93%9C_%EC%A0%95%EA%B7%9C%ED%99%94
+    """
     return unicodedata.normalize(form, s)
 
   @staticmethod
@@ -117,3 +117,8 @@ class PreprocessorBase(metaclass=ABCMeta):
       return True
 
     return False
+
+  @staticmethod
+  def unicode_to_ascii(s):
+    return ''.join(c for c in unicodedata.normalize('NFD', s)
+                   if unicodedata.category(c) != 'Mn')
