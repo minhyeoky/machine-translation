@@ -13,10 +13,10 @@
     "model": {
       "transformer": {
         "args": {
-          "d_model": 128,
-          "d_ff": 512,
-          "n_head": 4,
-          "n_layer": 3
+          "d_model": 512,
+          "d_ff": 2048,
+          "n_head": 8,
+          "n_layer": 6
         }
       }
     },
