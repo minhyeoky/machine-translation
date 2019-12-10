@@ -7,7 +7,7 @@ TAG="nmt"
 DOCKER_DIR="/tf"
 MODEL_NAME="seq2seq"
 DATA_PATH=data/input/aihub_kor-eng/1.구어체.xlsx
-DEU=false
+DEU=0
 
 while getopts "g:dj:v:m:p:u" opt; do
   case "$opt" in
@@ -30,7 +30,7 @@ while getopts "g:dj:v:m:p:u" opt; do
     MODEL_NAME="$OPTARG"
     ;;
   u)
-    DEU=true
+    DEU=1
     ;;
   *)
     echo "Invalid arguments are provieded"
