@@ -73,7 +73,7 @@ class ScaledDotProductAttention(Layer):
       attention_weights: `(batch_size, n_head, seq_q, seq_v)`
     """
     # `(batch_size, seq_q, seq_k)`
-    d_model = tf.cast(q.shape[2], tf.float32)
+    d_model = tf.cast(q.shape[3], tf.float32)
     d_model_v = v.shape[3]
     score = tf.matmul(q, k, transpose_b=True)
     score_logits = tf.divide(score, tf.sqrt(d_model))
