@@ -1,14 +1,15 @@
 import numpy as np
 import tensorflow as tf
 
-INF = 10e14
+INF = 10e9
 
 keras = tf.keras
 LSTM = keras.layers.LSTM
 
-Model = keras.models.Model
+Model = keras.models.Modelc
 Layer = keras.layers.Layer
 Dense = keras.layers.Dense
+Dropout = keras.layers.Dropout
 LayerNorm = keras.layers.LayerNormalization
 Embedding = keras.layers.Embedding
 
@@ -30,10 +31,10 @@ Embedding = keras.layers.Embedding
 #     return tf.math.rsqrt(self.d_model) * tf.math.minimum(arg1, arg2)
 
 
-class PositionalWiseFeedForward(Layer):
+class PositionWiseFeedForward(Layer):
 
   def __init__(self, d_ff, d_model):
-    super(PositionalWiseFeedForward, self).__init__()
+    super(PositionWiseFeedForward, self).__init__()
     self.W1 = Dense(units=d_ff, activation='relu')
     self.W2 = Dense(units=d_model, activation=None)
 
@@ -59,43 +60,42 @@ class ScaledDotProductAttention(Layer):
   def __init__(self):
     super(ScaledDotProductAttention, self).__init__()
 
-  def call(self, q, k, v, pad_mask=None, look_ahead_mask=None, **kwargs):
+  def call(self, q, k, v, mask):
     """
 
     Args:
-      q: queries, `(batch_size, n_head, seq_q, d_model)`
-      k: keys, `(batch_size, n_head, seq_k, d_model)`
-      v: values `(batch_size, n_head, seq_v, d_model)`
-      **kwargs:
+      q: `(batch_size, n_head, seq_q, d_model)`
+      k: `(batch_size, n_head, seq_k, d_model)`
+      v: `(batch_size, n_head, seq_v, d_model)`
+      In case of self attention, q = k = v
+      mask: `(batch_size, 1, 1, seq_k)`: mask padding tokens.
+      or `(batch_size, 1, seq_q, seq_k)`: to block inappropriate information and also mask padding tokens.
 
     Returns:
       context_vector: `(batch_size, n_head, seq_q, d_model)`
       attention_weights: `(batch_size, n_head, seq_q, seq_v)`
     """
-    # `(batch_size, seq_q, seq_k)`
-    d_model = tf.cast(q.shape[3], tf.float32)
-    d_model_v = v.shape[3]
-    score = tf.matmul(q, k, transpose_b=True)
-    score_logits = tf.divide(score, tf.sqrt(d_model))
-
-    if pad_mask is not None:
-      # masking: -inf 로 만들어서 softmax 영향력이 없도록 함
-      pad_mask = pad_mask * -INF
-      score_logits = score_logits + pad_mask
-
-    if look_ahead_mask is not None:
-      look_ahead_mask = look_ahead_mask * -INF
-      score_logits = score_logits + look_ahead_mask
-
-    # softmax function on the seq_k.
-    attention_weights = tf.math.softmax(score_logits, axis=-1)
     batch_size = q.shape[0]
     n_head = q.shape[1]
-    seq_q = q.shape[2]
-    seq_k = k.shape[2]
+    seq_q, seq_k, seq_v = q.shape[2], k.shape[2], v.shape[2]
+    d_model_q, d_model_k, d_model_v = q.shape[3], k.shape[3], v.shape[3]
+    assert batch_size == k.shape[0] == v.shape[0]
+    assert n_head == k.shape[1] == v.shape[1]
+
+    score = tf.matmul(q, k, transpose_b=True)
+    score_logits = tf.divide(score, tf.sqrt(tf.cast(d_model_q,
+                                                    dtype=tf.float32)))
+    assert score_logits.shape == (batch_size, n_head, seq_q, seq_k)
+
+    if mask is not None:
+      score_logits = score_logits + (
+          mask * -INF)    # masking: -inf 로 만들어서 softmax function 의 영향력이 없도록 함
+
+    attention_weights = tf.math.softmax(score_logits, axis=-1)
     assert attention_weights.shape == (batch_size, n_head, seq_q, seq_k)
     assert v.shape == (batch_size, n_head, seq_k, d_model_v)
 
+    # attention weights 각각의 행에는 value 들에 대한 score가 있고 각각에 대응하는 value 는 열벡터이므로, 자연스럽게 weighted sum 이 됨
     context_vector = tf.matmul(attention_weights, v)
     assert context_vector.shape == (batch_size, n_head, seq_q, d_model_v)
 
@@ -104,22 +104,24 @@ class ScaledDotProductAttention(Layer):
 
 class MultiHeadAttention(Layer):
 
-  def __init__(self, n_head, d_model, *args, **kwargs):
-    super(MultiHeadAttention, self).__init__(*args, **kwargs)
+  def __init__(self, n_head, d_model):
+    super(MultiHeadAttention, self).__init__()
 
     self.d_model = d_model
     self.n_head = n_head
 
+    # Linear transformation
     self.Wq = Dense(units=d_model, activation=None)
     self.Wk = Dense(units=d_model, activation=None)
     self.Wv = Dense(units=d_model, activation=None)
     self.Wo = Dense(units=d_model, activation=None)
     self.dh = d_model // n_head
+    assert d_model % n_head == 0.
     self.scaled_dot_product_attention = ScaledDotProductAttention()
 
   def split_heads(self, x):
-    batch_size = x.shape[0]
-    seq_len = x.shape[1]
+    batch_size, seq_len = x.shape[0], x.shape[1]
+
     x = tf.transpose(tf.reshape(x,
                                 shape=(batch_size, seq_len, self.n_head,
                                        self.dh)),
@@ -127,47 +129,35 @@ class MultiHeadAttention(Layer):
     assert x.shape == (batch_size, self.n_head, seq_len, self.dh)
     return x
 
-  def __call__(self,
-               query,
-               keys,
-               values,
-               pad_mask=None,
-               look_ahead_mask=None,
-               **kwargs):
+  def __call__(self, q, k, v, mask):
     """
 
     Args:
-      query: `(batch_size, seq_q, d_model)`
-      keys: `(batch_size, seq_k, d_model)`
-      values: `(batch_size, seq_v, d_model)`
-      pad_mask: `(batch_size, seq_q, seq_k)`
-      look_ahead_mask: `(batch_size, seq_q, seq_k)`
+      q: `(batch_size, seq_q, d_model)`
+      k: `(batch_size, seq_k, d_model)`
+      v: `(batch_size, seq_v, d_model)`
+      mask: `(batch_size, 1, 1, seq_q)` or `(batch_size, 1, seq_q, seq_k)`
 
     Returns:
       context_vectors: `(batch_size, seq_q, d_model)`
       attention_weights: `(n_head, batch_size, seq_q, seq_v)`
     """
-
-    # query shape == (batch_size, seq_q * d_model)
-    batch_size = query.shape[0]
-    seq_q = query.shape[1]
+    batch_size = q.shape[0]
+    seq_q, seq_k, seq_v = q.shape[1], k.shape[1], v.shape[1]
+    assert batch_size == k.shape[0] == v.shape[0]
 
     # Linear projection
-    query = self.Wq(query)
-    keys = self.Wk(keys)
-    values = self.Wv(values)
+    q = self.Wq(q)
+    k = self.Wk(k)
+    v = self.Wv(v)
 
     # query_with_heads, shape == `(batch_size, n_head, seq_q, d_model)`
-    query_with_heads = self.split_heads(query)
-    keys_with_heads = self.split_heads(keys)
-    values_with_heads = self.split_heads(values)
+    query_with_heads = self.split_heads(q)
+    keys_with_heads = self.split_heads(k)
+    values_with_heads = self.split_heads(v)
 
     context_vector, attention_weights = self.scaled_dot_product_attention(
-        query_with_heads,
-        keys_with_heads,
-        values_with_heads,
-        pad_mask=pad_mask,
-        look_ahead_mask=look_ahead_mask)
+        query_with_heads, keys_with_heads, values_with_heads, mask=mask)
 
     assert context_vector.shape == (batch_size, self.n_head, seq_q, self.dh)
     context_vector = tf.transpose(context_vector, perm=[0, 2, 1, 3])
@@ -219,18 +209,20 @@ class Encoder(Model):
     self.learned_pos_enc = learned_pos_enc
 
     self.positional_embedding = PositionalEmbedding(
-        d_model, vocab_size, learned_pos_enc=learned_pos_enc, seq_len=seq_len)
+        d_model, vocab_size)
 
     # sub-layer 1: multi head attention
     # sub-layer 2: positional feed forward
     self.encoder_layers = [[
         MultiHeadAttention(n_head, d_model),
-        PositionalWiseFeedForward(d_ff, d_model),
+        PositionWiseFeedForward(d_ff, d_model),
         LayerNorm(),
         LayerNorm()
     ] for _ in range(n_layer)]
 
-  def call(self, inputs, training, attention_mask, **kwargs):
+    self.dropout = Dropout(rate=0.1)
+
+  def call(self, inputs, training, pad_mask, **kwargs):
     """
 
     Args:
@@ -246,6 +238,7 @@ class Encoder(Model):
     # Embedding
     seq_len = inputs.shape[1]
     x = self.positional_embedding(inputs, seq_len)
+    # x = self.dropout(x)
 
     # Add Positional Encoding
     for i in range(self.n_layer):
@@ -255,10 +248,7 @@ class Encoder(Model):
       pos_wise_forward = self.encoder_layers[i][1]
       layer_norm_1 = self.encoder_layers[i][2]
       layer_norm_2 = self.encoder_layers[i][3]
-      x, attention_weights = multi_head_attention(query=x,
-                                                  keys=x,
-                                                  values=x,
-                                                  pad_mask=attention_mask)
+      x, attention_weights = multi_head_attention(x, x, x, mask=pad_mask)
       x = layer_norm_1(prev_x + x, training=training)
 
       # Sub Layer 2
@@ -296,16 +286,16 @@ class DecoderLayer(Layer):
     # Sub layers
     self.masked_multi_head_attention = MultiHeadAttention(n_head, d_model)
     self.multi_head_attention = MultiHeadAttention(n_head, d_model)
-    self.positional_feed_forward = PositionalWiseFeedForward(d_ff, d_model)
+    self.positional_feed_forward = PositionWiseFeedForward(d_ff, d_model)
     self.layer_norm = (LayerNorm(), LayerNorm(), LayerNorm())
+    self.dropout = (Dropout(rate=0.1), Dropout(rate=0.1), Dropout(rate=0.1))
 
   def call(self,
            inputs,
            outputs_encoder,
            training,
-           attention_mask=None,
+           pad_mask=None,
            look_ahead_mask=None,
-           self_attention_mask=None,
            **kwargs):
     """
 
@@ -331,12 +321,10 @@ class DecoderLayer(Layer):
 
     # 1
     prev_x = x = inputs
-    x, attention_weights_1 = masked_multi_head_attention(
-        query=x,
-        keys=x,
-        values=x,
-        pad_mask=self_attention_mask,
-        look_ahead_mask=look_ahead_mask)
+    x, attention_weights_1 = masked_multi_head_attention(q=x,
+                                                         k=x,
+                                                         v=x,
+                                                         mask=look_ahead_mask)
     x = layer_norm[0](x + prev_x, training=training)
 
     # 2
@@ -344,8 +332,7 @@ class DecoderLayer(Layer):
     x, attention_weights_2 = multi_head_attention(x,
                                                   keys,
                                                   values,
-                                                  pad_mask=attention_mask,
-                                                  look_ahead_mask=None)
+                                                  mask=pad_mask)
     x = layer_norm[1](x + prev_x, training=training)
 
     # 3
@@ -358,22 +345,10 @@ class DecoderLayer(Layer):
 
 class PositionalEmbedding(Layer):
 
-  def __init__(self, d_model, vocab_size, learned_pos_enc=False, seq_len=None):
+  def __init__(self, d_model, vocab_size):
     super(PositionalEmbedding, self).__init__()
     self.embedding = Embedding(vocab_size, d_model)
-    self.learned_pos_enc = learned_pos_enc
     self.d_model = d_model
-    self.pos_enc = None
-    if seq_len and learned_pos_enc:
-      # self.pos_enc = tf.Variable(trainable=None,
-      #                           initial_value=tf.random.normal(
-      #                               (1, seq_len, d_model), dtype=tf.float32),
-      #                           dtype=tf.float32)
-      self.pos_enc = self.add_weight(name='pos_enc',
-                                     shape=(1, seq_len, d_model),
-                                     dtype=tf.float32,
-                                     trainable=True,
-                                     initializer=tf.initializers.glorot_normal)
 
   def call(self, inputs, seq_len):
     """
@@ -385,12 +360,13 @@ class PositionalEmbedding(Layer):
     Returns:
       outputs: `(batch_size, seq_len, d_model)`
     """
-    if not self.learned_pos_enc:
-      self.pos_enc = positional_encoding(seq_len, self.d_model)
+    seq_len = inputs.shape[1]
+
+    pos_enc = positional_encoding(1000, self.d_model)[:, :seq_len, :]
     embedded_inputs = self.embedding(inputs)
     embedded_inputs *= tf.sqrt(tf.cast(self.d_model, tf.float32))    # ??
-    embedded_inputs = embedded_inputs + self.pos_enc
-    assert embedded_inputs.shape == inputs.shape + (self.d_model,)
+    embedded_inputs = embedded_inputs + pos_enc
+    assert embedded_inputs.shape == inputs.shape + (self.d_model,)  # (batch_size, seq_len, d_model)
     return embedded_inputs
 
 
@@ -410,8 +386,7 @@ class Decoder(Model):
     self.vocab_size = vocab_size
     self.n_layer = n_layer
 
-    self.positional_embedding = PositionalEmbedding(d_model, vocab_size,
-                                                    learned_pos_enc, seq_len)
+    self.positional_embedding = PositionalEmbedding(d_model, vocab_size)
 
     self.decode_layers = [
         DecoderLayer(vocab_size, d_model, n_head, d_ff, seq_len)

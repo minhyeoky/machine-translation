@@ -296,8 +296,8 @@ class MyTestCase(unittest.TestCase):
     self.assertEqual(mask.shape, (5, 7, 5))
 
   def test_position_embedding(self):
-    pe = PositionalEmbedding(self.n_units, self.vocab_size, True, self.max_seq)
-    self.assertEqual(pe.pos_enc in pe.trainable_variables, True)
+    pe = PositionalEmbedding(self.n_units, self.vocab_size)
+    print(pe)
 
   def test_decode_layer(self):
     n_layer = 6
