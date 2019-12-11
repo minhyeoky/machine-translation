@@ -34,9 +34,9 @@ class DataLoader(DataLoaderBase):
                validation_split=0.1,
                deu=False,
                num_words=None,
-               max_len=None):
+               maxlen=None):
     super(DataLoader, self).__init__()
-    self.maxlen = max_len
+    self.maxlen = maxlen
     self.deu = deu
     logger.info('Initializing Dataloader')
     self.preprocessor = NamedTuple('Preprocessor', [('ori', EngPreprocessor),
