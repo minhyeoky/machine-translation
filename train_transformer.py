@@ -8,8 +8,7 @@ from src.data.data_loader import DataLoader
 from src.config import Config
 from src.model.loss import transformer_train_loss
 from src.model.transformer import Transformer
-from src.model.transformer import create_look_ahead_mask, create_pad_mask
-from src.utils import get_bleu_score
+from src.utils import get_bleu_score, create_look_ahead_mask, create_pad_mask
 
 pad_idx = 0
 MAX_INFERENCE_LEN = 20

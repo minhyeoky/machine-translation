@@ -251,16 +251,6 @@ class Encoder(Model):
     return x    # (batch_size, seq_len, d_model)
 
 
-def create_pad_mask(x, pad_idx=0):
-  """PAD -> Mask"""
-  batch_size = x.shape[0]
-  seq_len = x.shape[1]
-  mask = tf.cast(tf.math.equal(x, pad_idx), dtype=tf.float32)
-  mask = mask[:, tf.newaxis, tf.newaxis, :]
-  assert mask.shape == (batch_size, 1, 1, seq_len)
-  return mask
-
-
 class DecoderLayer(Layer):
 
   def __init__(self,
@@ -407,17 +397,6 @@ class Decoder(Model):
     return x
 
 
-def create_look_ahead_mask(seq_len):
-  mask = []
-  for i in range(seq_len):
-    mask.append([0] * (i + 1) + [1] * (seq_len - i - 1))
-    # mask[i][] *= 0
-  mask = tf.constant(mask, dtype=tf.float32, shape=(seq_len, seq_len))
-  mask = mask[tf.newaxis, tf.newaxis, :, :]
-  assert mask.shape == (1, 1, seq_len, seq_len)
-  return mask
-
-
 # def create_decoder_pad_mask(q, k, pad_idx: int):
 #   """
 #
@@ -442,10 +421,7 @@ class Transformer(tf.keras.Model):
                n_head,
                d_ff,
                input_vocab_size,
-               target_vocab_size,
-               pe_input=None,
-               pe_target=None,
-               rate=0.1):
+               target_vocab_size):
     super(Transformer, self).__init__()
 
     self.encoder = Encoder(n_layer=n_layer,

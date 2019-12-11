@@ -8,7 +8,8 @@ from src.model.seq2seq_bahdanau import BahdanauAttention
 from src.model.seq2seq_bahdanau import Encoder as BahdanauEncoder
 from src.model.seq2seq_bahdanau import Decoder as BahdanauDecoder
 from src.model.seq2seq_bidirectional import Encoder as Seq2seqBidirectionalEncoder
-from src.model.transformer import ScaledDotProductAttention, MultiHeadAttention, create_pad_mask
+from src.model.transformer import ScaledDotProductAttention, MultiHeadAttention
+from src.utils import create_pad_mask
 from src.model.transformer import Encoder as TransformerEncoder
 from src.model.transformer import DecoderLayer as TransformerDecoderLayer
 from src.model.transformer import Decoder as TransformerDecoder
