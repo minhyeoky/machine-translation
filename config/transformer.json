@@ -5,11 +5,11 @@
     "ckpt_dir": "data/output/transformer/ckpt",
     "save_step": 100,
     "display_step": 10,
-    "log_level": "DEBUG",
+    "log_level": "INFO",
     "ckpt_max_keep": 10
   },
   "train": {
-    "epochs": 200,
+    "epochs": 20,
     "model": {
       "transformer": {
         "args": {
@@ -35,8 +35,8 @@
   "data_loader": {
     "batch_size": 32,
     "args": {
-      "n_data": 200,
-      "validation_split": 0.1,
+      "n_data": null,
+      "validation_split": 0.02,
       "num_words": 3000,
       "maxlen": 20
     }
