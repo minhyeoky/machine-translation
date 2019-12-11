@@ -28,8 +28,15 @@ class Data(NamedTuple):
 
 class DataLoader(DataLoaderBase):
 
-  def __init__(self, data_path, n_data=None, validation_split=0.1, deu=False):
+  def __init__(self,
+               data_path,
+               n_data=None,
+               validation_split=0.1,
+               deu=False,
+               num_words=None,
+               max_len=None):
     super(DataLoader, self).__init__()
+    self.maxlen = max_len
     self.deu = deu
     logger.info('Initializing Dataloader')
     self.preprocessor = NamedTuple('Preprocessor', [('ori', EngPreprocessor),
@@ -53,13 +60,13 @@ class DataLoader(DataLoaderBase):
     self.tokenizer = NamedTuple('Tokenizer', [('ori', tokenizer),
                                               ('tar', tokenizer)])
 
-    self.tokenizer.ori = tokenizer(num_words=None,
+    self.tokenizer.ori = tokenizer(num_words=num_words,
                                    filters='',
                                    lower=True,
                                    split=' ',
                                    oov_token=OOV_TOKEN)
 
-    self.tokenizer.tar = tokenizer(num_words=None,
+    self.tokenizer.tar = tokenizer(num_words=num_words,
                                    filters='',
                                    lower=True,
                                    split=' ',
@@ -80,13 +87,15 @@ class DataLoader(DataLoaderBase):
     for o, t in zip(ori, tar):
       yield o, t
 
-  @staticmethod
-  def _tokenize(texts, tokenizer, fit):
+  def _tokenize(self, texts, tokenizer, fit):
     if fit:
       tokenizer.fit_on_texts(texts)
     sequences = tokenizer.texts_to_sequences(texts)
     sequences = tf.keras.preprocessing.sequence.pad_sequences(
-        sequences, padding='post', truncating='post',
+        sequences,
+        maxlen=self.maxlen,
+        padding='post',
+        truncating='post',
         value=0)    # padding value
     return sequences
 

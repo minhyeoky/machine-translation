@@ -9,7 +9,7 @@
     "ckpt_max_keep": 10
   },
   "train": {
-    "epochs": 20,
+    "epochs": 200,
     "model": {
       "transformer": {
         "args": {
@@ -24,7 +24,8 @@
       "type": 0,
       "args": {
         "lr": 0.001,
-        "beta_1": 0.9
+        "beta_1": 0.9,
+        "beta_2": 0.98
       }
     }
   },
@@ -34,8 +35,10 @@
   "data_loader": {
     "batch_size": 32,
     "args": {
-      "n_data": null,
-      "validation_split": 0.1
+      "n_data": 200,
+      "validation_split": 0.1,
+      "num_words": 3000,
+      "maxlen": 20
     }
   }
 }
