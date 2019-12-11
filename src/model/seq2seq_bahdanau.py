@@ -116,7 +116,7 @@ class BahdanauAttention(Layer):
     """
       Args:
         inputs:
-          query: decoder's target hidden state tensor with shape `(batch_size, n_units * 2)`
+          q: decoder's target hidden state tensor with shape `(batch_size, n_units * 2)`
           values: all of the hidden states tensor of encoder equals to key
             with shape `(batch_size, max_length, n_units * 2)`
 

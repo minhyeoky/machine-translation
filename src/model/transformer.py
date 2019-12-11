@@ -6,7 +6,7 @@ INF = 10e9
 keras = tf.keras
 LSTM = keras.layers.LSTM
 
-Model = keras.models.Modelc
+Model = keras.models.Model
 Layer = keras.layers.Layer
 Dense = keras.layers.Dense
 Dropout = keras.layers.Dropout
@@ -192,34 +192,39 @@ def positional_encoding(position, d_model):
   return tf.cast(pos_encoding, dtype=tf.float32)
 
 
+class EncoderLayer(Layer):
+
+  def __init__(self, d_model, n_head, d_ff):
+    super(EncoderLayer, self).__init__()
+
+    self.multi_head_attention = MultiHeadAttention(n_head, d_model)
+    self.position_wise_feed_forward = PositionWiseFeedForward(d_ff, d_model)
+    self.layer_norm_1 = LayerNorm()
+    self.layer_norm_2 = LayerNorm()
+    self.dropout = Dropout(rate=0.1)
+
+  def call(self, x, mask, training):
+    x = self.dropout(x)
+    __x, _ = self.multi_head_attention(x, x, x, mask)
+    x = self.layer_norm_1(x + __x, training=training)
+    x = self.dropout(x)
+    __x = self.position_wise_feed_forward(x)
+    x = self.layer_norm_2(x + __x, training=training)
+    return x
+
+
 class Encoder(Model):
 
-  def __init__(self,
-               vocab_size,
-               d_model,
-               n_layer,
-               n_head,
-               d_ff,
-               learned_pos_enc=False,
-               seq_len=None):
+  def __init__(self, vocab_size, d_model, n_layer, n_head, d_ff):
     super(Encoder, self).__init__()
 
     self.d_model = d_model
     self.n_layer = n_layer
-    self.learned_pos_enc = learned_pos_enc
 
-    self.positional_embedding = PositionalEmbedding(
-        d_model, vocab_size)
-
-    # sub-layer 1: multi head attention
-    # sub-layer 2: positional feed forward
-    self.encoder_layers = [[
-        MultiHeadAttention(n_head, d_model),
-        PositionWiseFeedForward(d_ff, d_model),
-        LayerNorm(),
-        LayerNorm()
-    ] for _ in range(n_layer)]
-
+    self.pos_embed = PositionalEmbedding(d_model, vocab_size)
+    self.encoder_layers = [
+        EncoderLayer(d_model, n_head, d_ff) for _ in range(n_layer)
+    ]
     self.dropout = Dropout(rate=0.1)
 
   def call(self, inputs, training, pad_mask, **kwargs):
@@ -237,24 +242,11 @@ class Encoder(Model):
 
     # Embedding
     seq_len = inputs.shape[1]
-    x = self.positional_embedding(inputs, seq_len)
-    # x = self.dropout(x)
+    x = self.pos_embed(inputs, seq_len)
+    x = self.dropout(x)
 
-    # Add Positional Encoding
     for i in range(self.n_layer):
-      # Sub layer 1
-      prev_x = x
-      multi_head_attention = self.encoder_layers[i][0]
-      pos_wise_forward = self.encoder_layers[i][1]
-      layer_norm_1 = self.encoder_layers[i][2]
-      layer_norm_2 = self.encoder_layers[i][3]
-      x, attention_weights = multi_head_attention(x, x, x, mask=pad_mask)
-      x = layer_norm_1(prev_x + x, training=training)
-
-      # Sub Layer 2
-      prev_x = x
-      x = pos_wise_forward(x)
-      x = layer_norm_2(prev_x + x, training=training)
+      x = self.encoder_layers[i](x, mask=pad_mask, training=training)
 
     return x    # (batch_size, seq_len, d_model)
 
@@ -288,10 +280,10 @@ class DecoderLayer(Layer):
     self.multi_head_attention = MultiHeadAttention(n_head, d_model)
     self.positional_feed_forward = PositionWiseFeedForward(d_ff, d_model)
     self.layer_norm = (LayerNorm(), LayerNorm(), LayerNorm())
-    self.dropout = (Dropout(rate=0.1), Dropout(rate=0.1), Dropout(rate=0.1))
+    self.dropout = Dropout(rate=0.1)
 
   def call(self,
-           inputs,
+           x,
            outputs_encoder,
            training,
            pad_mask=None,
@@ -313,32 +305,23 @@ class DecoderLayer(Layer):
     """
 
     # Decoder Layers
-    keys = values = outputs_encoder
-    masked_multi_head_attention = self.masked_multi_head_attention
-    multi_head_attention = self.multi_head_attention
-    feed_forward = self.positional_feed_forward
-    layer_norm = self.layer_norm
+    k = v = outputs_encoder
 
     # 1
-    prev_x = x = inputs
-    x, attention_weights_1 = masked_multi_head_attention(q=x,
-                                                         k=x,
-                                                         v=x,
-                                                         mask=look_ahead_mask)
-    x = layer_norm[0](x + prev_x, training=training)
+    x = self.dropout(x)
+    __x, attention_weights_1 = self.masked_multi_head_attention(
+        x, x, x, mask=look_ahead_mask)
+    x = self.layer_norm[0](x + __x, training=training)
 
     # 2
-    prev_x = x
-    x, attention_weights_2 = multi_head_attention(x,
-                                                  keys,
-                                                  values,
-                                                  mask=pad_mask)
-    x = layer_norm[1](x + prev_x, training=training)
+    x = self.dropout(x)
+    __x, attention_weights_2 = self.multi_head_attention(x, k, v, mask=pad_mask)
+    x = self.layer_norm[1](x + __x, training=training)
 
     # 3
-    prev_x = x
-    x = feed_forward(x)
-    x = layer_norm[2](x + prev_x, training=training)
+    x = self.dropout(x)
+    __x = self.positional_feed_forward(x)
+    x = self.layer_norm[2](x + __x, training=training)
 
     return x
 
@@ -366,7 +349,8 @@ class PositionalEmbedding(Layer):
     embedded_inputs = self.embedding(inputs)
     embedded_inputs *= tf.sqrt(tf.cast(self.d_model, tf.float32))    # ??
     embedded_inputs = embedded_inputs + pos_enc
-    assert embedded_inputs.shape == inputs.shape + (self.d_model,)  # (batch_size, seq_len, d_model)
+    assert embedded_inputs.shape == inputs.shape + (
+        self.d_model,)    # (batch_size, seq_len, d_model)
     return embedded_inputs
 
 
@@ -393,13 +377,9 @@ class Decoder(Model):
         for _ in range(n_layer)
     ]
     self.logit_layer = Dense(units=vocab_size, activation=None)
+    self.dropout = Dropout(rate=0.1)
 
-  def call(self,
-           inputs,
-           outputs_encoder,
-           training,
-           attention_mask=None,
-           look_ahead_mask=None):
+  def call(self, inputs, outputs_encoder, training, pad_mask, look_ahead_mask):
     """
 
     Args:
@@ -411,17 +391,19 @@ class Decoder(Model):
     """
 
     # Positional Embedding
+    batch_size = inputs.shape[0]
     seq_len = inputs.shape[1]
     x = self.positional_embedding(inputs, seq_len)
+    x = self.dropout(x)
 
     for i in range(self.n_layer):
       decode_layer = self.decode_layers[i]
       x = decode_layer(x,
                        outputs_encoder,
-                       attention_mask=attention_mask,
+                       pad_mask=pad_mask,
                        look_ahead_mask=look_ahead_mask,
                        training=training)
-    assert x.shape == inputs.shape + (self.d_model,)
+    assert x.shape == (batch_size, seq_len, self.d_model)
     return x
 
 
@@ -500,8 +482,7 @@ class Transformer(tf.keras.Model):
 
     final_output = self.final_layer(
         dec_output)    # (batch_size, tar_seq_len, target_vocab_size)
-    batch_size = inp.shape[0]
-    tar_seq_len = tar.shape[1]
+    batch_size, tar_seq_len = inp.shape[0], tar.shape[1]
     assert final_output.shape == (batch_size, tar_seq_len,
                                   self.target_vocab_size)
     return final_output
