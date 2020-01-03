@@ -1,1 +1,1 @@
-__all__ = ['english', 'korean']
+__all__ = ["english", "korean"]

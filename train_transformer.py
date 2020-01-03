@@ -20,11 +20,11 @@ Adam = keras.optimizers.Adam
 logger = tf.get_logger()
 
 # Arguments
-logger.info('Parsing arguments')
+logger.info("Parsing arguments")
 parser = argparse.ArgumentParser()
-parser.add_argument('--config_json', type=str, required=True)
-parser.add_argument('--data_path', type=str, required=True)
-parser.add_argument('--deu', type=int, required=False)
+parser.add_argument("--config_json", type=str, required=True)
+parser.add_argument("--data_path", type=str, required=True)
+parser.add_argument("--deu", type=int, required=False)
 args = parser.parse_args()
 
 data_path = args.data_path
@@ -36,19 +36,28 @@ config = Config.from_json_file(config_json)
 logger.setLevel(config.log_level)
 
 # Dataloader & Dataset
-data_loader = DataLoader(data_path, **config.data_loader['args'], deu=deu)
-dataset_train = tf.data.Dataset.from_generator(
-    data_loader.train_data_generator,
-    output_types=(tf.int32, tf.int32)).shuffle(config.buffer_size).batch(
-        config.batch_size, drop_remainder=True).prefetch(PREFETCH)
-dataset_test = tf.data.Dataset.from_generator(
-    data_loader.test_data_generator,
-    output_types=(tf.int32, tf.int32)).shuffle(config.buffer_size).batch(
-        config.inference_size, drop_remainder=True).repeat().prefetch(PREFETCH)
+data_loader = DataLoader(data_path, **config.data_loader["args"], deu=deu)
+dataset_train = (
+    tf.data.Dataset.from_generator(
+        data_loader.train_data_generator, output_types=(tf.int32, tf.int32)
+    )
+    .shuffle(config.buffer_size)
+    .batch(config.batch_size, drop_remainder=True)
+    .prefetch(PREFETCH)
+)
+dataset_test = (
+    tf.data.Dataset.from_generator(
+        data_loader.test_data_generator, output_types=(tf.int32, tf.int32)
+    )
+    .shuffle(config.buffer_size)
+    .batch(config.inference_size, drop_remainder=True)
+    .repeat()
+    .prefetch(PREFETCH)
+)
 dataset_test_iterator = iter(dataset_test)
 
 # Tokenizer
-logger.info('Getting Tokenizer')
+logger.info("Getting Tokenizer")
 tokenizers = data_loader.tokenizer
 tokenizer_ori: tf.keras.preprocessing.text.Tokenizer = tokenizers.ori
 tokenizer_tar: tf.keras.preprocessing.text.Tokenizer = tokenizers.tar
@@ -58,41 +67,44 @@ vocab_size_ori = len(tokenizer_ori.word_index) + 1
 # Model
 # encoder = Encoder(vocab_size_ori, **config.encoder['args'])
 # decoder = Decoder(vocab_size_tar, **config.decoder['args'])
-transformer = Transformer(target_vocab_size=vocab_size_tar,
-                          input_vocab_size=vocab_size_ori,
-                          **config.transformer['args'])
+transformer = Transformer(
+    target_vocab_size=vocab_size_tar,
+    input_vocab_size=vocab_size_ori,
+    **config.transformer["args"],
+)
 
 # Tensorboard
-log_writer = namedtuple('logWriter', ['train', 'test'])
-log_writer.train = tf.summary.create_file_writer(logdir=config.logdir +
-                                                 '_train')
-log_writer.test = tf.summary.create_file_writer(logdir=config.logdir + '_test')
+log_writer = namedtuple("logWriter", ["train", "test"])
+log_writer.train = tf.summary.create_file_writer(logdir=config.logdir + "_train")
+log_writer.test = tf.summary.create_file_writer(logdir=config.logdir + "_test")
 
 # Optimizer
-optimizer = Adam(**config.optimizer['args'])
+optimizer = Adam(**config.optimizer["args"])
 
 # Checkpoint & Manager
 Checkpoint = tf.train.Checkpoint
 CheckpointManager = tf.train.CheckpointManager
-ckpt = Checkpoint(step=tf.Variable(initial_value=0, dtype=tf.int64),
-                  optimizer=optimizer,
-                  transformer=transformer)
-ckpt_manager = tf.train.CheckpointManager(checkpoint=ckpt,
-                                          directory=config.ckpt_dir,
-                                          max_to_keep=config.ckpt_max_keep)
+ckpt = Checkpoint(
+    step=tf.Variable(initial_value=0, dtype=tf.int64),
+    optimizer=optimizer,
+    transformer=transformer,
+)
+ckpt_manager = tf.train.CheckpointManager(
+    checkpoint=ckpt, directory=config.ckpt_dir, max_to_keep=config.ckpt_max_keep
+)
 
 latest_checkpoint = ckpt_manager.latest_checkpoint
 if latest_checkpoint:
-  ckpt.restore(latest_checkpoint)
-  logger.info(f'Restore from {latest_checkpoint}')
+    ckpt.restore(latest_checkpoint)
+    logger.info(f"Restore from {latest_checkpoint}")
 else:
-  logger.info('Train from scratch')
+    logger.info("Train from scratch")
 
 
 # Training & Inference
 @tf.function
 def train_step(ori_train, tar_train):
-  """
+    """
 
   Args:
     ori_train: `(batch_size, seq_len_en)`
@@ -101,119 +113,126 @@ def train_step(ori_train, tar_train):
   Returns:
     loss: scalar
   """
-  decoder_inputs = tar_train[:, :-1]
-  labels = tar_train[:, 1:]
+    decoder_inputs = tar_train[:, :-1]
+    labels = tar_train[:, 1:]
 
-  with tf.GradientTape() as tape:
-    enc_pad_mask = create_pad_mask(ori_train, pad_idx)
-    dec_pad_mask = create_pad_mask(ori_train, pad_idx)
-    look_ahead_mask = create_look_ahead_mask(decoder_inputs.shape[1])
-    self_attention_mask = create_pad_mask(decoder_inputs, pad_idx)
-    look_ahead_mask = tf.maximum(self_attention_mask, look_ahead_mask)
-    logits = transformer(inputs=(ori_train, decoder_inputs),
-                         training=True,
-                         enc_pad_mask=enc_pad_mask,
-                         dec_pad_mask=dec_pad_mask,
-                         look_ahead_mask=look_ahead_mask)
+    with tf.GradientTape() as tape:
+        enc_pad_mask = create_pad_mask(ori_train, pad_idx)
+        dec_pad_mask = create_pad_mask(ori_train, pad_idx)
+        look_ahead_mask = create_look_ahead_mask(decoder_inputs.shape[1])
+        self_attention_mask = create_pad_mask(decoder_inputs, pad_idx)
+        look_ahead_mask = tf.maximum(self_attention_mask, look_ahead_mask)
+        logits = transformer(
+            inputs=(ori_train, decoder_inputs),
+            training=True,
+            enc_pad_mask=enc_pad_mask,
+            dec_pad_mask=dec_pad_mask,
+            look_ahead_mask=look_ahead_mask,
+        )
 
-    loss = transformer_train_loss(logits, labels, pad_idx)
+        loss = transformer_train_loss(logits, labels, pad_idx)
 
-  trainable_variables = transformer.trainable_variables
-  gradients = tape.gradient(loss, trainable_variables)
-  optimizer.apply_gradients(zip(gradients, trainable_variables))
+    trainable_variables = transformer.trainable_variables
+    gradients = tape.gradient(loss, trainable_variables)
+    optimizer.apply_gradients(zip(gradients, trainable_variables))
 
-  return loss
+    return loss
 
 
 @tf.function
 def inference(data):
-  batch_size = data.shape[0]
+    batch_size = data.shape[0]
 
-  input_decoder = tf.expand_dims([tokenizer_ori.word_index['<start>']] *
-                                 batch_size, 1)
+    input_decoder = tf.expand_dims(
+        [tokenizer_ori.word_index["<start>"]] * batch_size, 1
+    )
 
-  for i in range(MAX_INFERENCE_LEN):
-    enc_pad_mask = create_pad_mask(data, pad_idx)
-    dec_self_attention_mask = create_pad_mask(input_decoder, pad_idx)
-    look_ahead_mask = create_look_ahead_mask(input_decoder.shape[1])
-    look_ahead_mask = tf.maximum(dec_self_attention_mask, look_ahead_mask)
-    dec_pad_mask = create_pad_mask(data, pad_idx)
+    for i in range(MAX_INFERENCE_LEN):
+        enc_pad_mask = create_pad_mask(data, pad_idx)
+        dec_self_attention_mask = create_pad_mask(input_decoder, pad_idx)
+        look_ahead_mask = create_look_ahead_mask(input_decoder.shape[1])
+        look_ahead_mask = tf.maximum(dec_self_attention_mask, look_ahead_mask)
+        dec_pad_mask = create_pad_mask(data, pad_idx)
 
-    logits = transformer(inputs=(data, input_decoder),
-                         training=False,
-                         enc_pad_mask=enc_pad_mask,
-                         dec_pad_mask=dec_pad_mask,
-                         look_ahead_mask=look_ahead_mask)
-    logits = logits[:, -1, :]
-    probs = tf.math.softmax(logits, axis=-1)
-    preds = tf.argmax(probs, axis=-1)
-    preds = tf.expand_dims(preds, 1)
-    preds = tf.cast(preds, tf.int32)
-    input_decoder = tf.concat([input_decoder, preds], axis=-1)
-  return input_decoder
+        logits = transformer(
+            inputs=(data, input_decoder),
+            training=False,
+            enc_pad_mask=enc_pad_mask,
+            dec_pad_mask=dec_pad_mask,
+            look_ahead_mask=look_ahead_mask,
+        )
+        logits = logits[:, -1, :]
+        probs = tf.math.softmax(logits, axis=-1)
+        preds = tf.argmax(probs, axis=-1)
+        preds = tf.expand_dims(preds, 1)
+        preds = tf.cast(preds, tf.int32)
+        input_decoder = tf.concat([input_decoder, preds], axis=-1)
+    return input_decoder
 
 
 for e in range(config.epochs):
-  logger.info(f'Train epoch: {e}')
-  for en, ko in dataset_train:
-    step = ckpt.step.numpy()
-    start = time()
-    train_loss = train_step(en, ko)
-    end = time()
-    train_step_time = end - start
+    logger.info(f"Train epoch: {e}")
+    for en, ko in dataset_train:
+        step = ckpt.step.numpy()
+        start = time()
+        train_loss = train_step(en, ko)
+        end = time()
+        train_step_time = end - start
 
-    with log_writer.train.as_default():
-      tf.summary.scalar('train_loss', train_loss, step)
-      tf.summary.scalar('train_step_time', train_step_time, step)
+        with log_writer.train.as_default():
+            tf.summary.scalar("train_loss", train_loss, step)
+            tf.summary.scalar("train_step_time", train_step_time, step)
 
-    if step % config.display_step == 0:
-      logger.info(f'Train step: {step}')
-      logger.info(f'  Loss: {train_loss}')
-      logger.info(f'  Time: {train_step_time : 0.2f}')
+        if step % config.display_step == 0:
+            logger.info(f"Train step: {step}")
+            logger.info(f"  Loss: {train_loss}")
+            logger.info(f"  Time: {train_step_time : 0.2f}")
 
-      logger.info('Train Inferences')
-      original_eng_text = tokenizer_ori.sequences_to_texts(en.numpy()[:2])
-      logger.info(f'  original eng text: {original_eng_text}')
-      ko_inferenced = inference(en)
-      original_kor_text = tokenizer_tar.sequences_to_texts(ko.numpy()[:2])
-      logger.info(f'  original kor text: {original_kor_text}')
-      inferenced_kor_text = tokenizer_tar.sequences_to_texts(
-          ko_inferenced.numpy()[:2])
-      logger.info(f'  inferenced kor text: {inferenced_kor_text}')
-      ko = tokenizer_tar.sequences_to_texts(ko.numpy())
-      ko_inferenced = tokenizer_tar.sequences_to_texts(ko_inferenced.numpy())
-      bleu_train = get_bleu_score(ko, ko_inferenced)
-      logger.info(f'  mean bleu score: {bleu_train}')
+            logger.info("Train Inferences")
+            original_eng_text = tokenizer_ori.sequences_to_texts(en.numpy()[:2])
+            logger.info(f"  original eng text: {original_eng_text}")
+            ko_inferenced = inference(en)
+            original_kor_text = tokenizer_tar.sequences_to_texts(ko.numpy()[:2])
+            logger.info(f"  original kor text: {original_kor_text}")
+            inferenced_kor_text = tokenizer_tar.sequences_to_texts(
+                ko_inferenced.numpy()[:2]
+            )
+            logger.info(f"  inferenced kor text: {inferenced_kor_text}")
+            ko = tokenizer_tar.sequences_to_texts(ko.numpy())
+            ko_inferenced = tokenizer_tar.sequences_to_texts(ko_inferenced.numpy())
+            bleu_train = get_bleu_score(ko, ko_inferenced)
+            logger.info(f"  mean bleu score: {bleu_train}")
 
-      with log_writer.train.as_default():
-        tf.summary.text('original_eng_text', original_eng_text, step)
-        tf.summary.text('original_kor_text', original_kor_text, step)
-        tf.summary.text('inferenced_kor_text', inferenced_kor_text, step)
-        tf.summary.scalar('bleu', bleu_train, step)
+            with log_writer.train.as_default():
+                tf.summary.text("original_eng_text", original_eng_text, step)
+                tf.summary.text("original_kor_text", original_kor_text, step)
+                tf.summary.text("inferenced_kor_text", inferenced_kor_text, step)
+                tf.summary.scalar("bleu", bleu_train, step)
 
-      logger.info(f'Test Inferences')
-      en, ko = next(dataset_test_iterator)
-      original_eng_text = tokenizer_ori.sequences_to_texts(en.numpy())
-      logger.info(f'  original eng text: {original_eng_text}')
-      ko_inferenced = inference(en)
-      original_kor_text = tokenizer_tar.sequences_to_texts(ko.numpy())
-      logger.info(f'  original kor text: {original_kor_text}')
-      inferenced_kor_text = tokenizer_tar.sequences_to_texts(
-          ko_inferenced.numpy())
-      logger.info(f'  inferenced kor text: {inferenced_kor_text}')
-      ko = tokenizer_tar.sequences_to_texts(ko.numpy())
-      ko_inferenced = tokenizer_tar.sequences_to_texts(ko_inferenced.numpy())
-      bleu_test = get_bleu_score(ko, ko_inferenced)
-      logger.info(f'  mean bleu score: {bleu_test}')
+            logger.info(f"Test Inferences")
+            en, ko = next(dataset_test_iterator)
+            original_eng_text = tokenizer_ori.sequences_to_texts(en.numpy())
+            logger.info(f"  original eng text: {original_eng_text}")
+            ko_inferenced = inference(en)
+            original_kor_text = tokenizer_tar.sequences_to_texts(ko.numpy())
+            logger.info(f"  original kor text: {original_kor_text}")
+            inferenced_kor_text = tokenizer_tar.sequences_to_texts(
+                ko_inferenced.numpy()
+            )
+            logger.info(f"  inferenced kor text: {inferenced_kor_text}")
+            ko = tokenizer_tar.sequences_to_texts(ko.numpy())
+            ko_inferenced = tokenizer_tar.sequences_to_texts(ko_inferenced.numpy())
+            bleu_test = get_bleu_score(ko, ko_inferenced)
+            logger.info(f"  mean bleu score: {bleu_test}")
 
-      with log_writer.test.as_default():
-        tf.summary.text('original_eng_text', original_eng_text, step)
-        tf.summary.text('original_kor_text', original_kor_text, step)
-        tf.summary.text('inferenced_kor_text', inferenced_kor_text, step)
-        tf.summary.scalar('bleu', bleu_test, step)
+            with log_writer.test.as_default():
+                tf.summary.text("original_eng_text", original_eng_text, step)
+                tf.summary.text("original_kor_text", original_kor_text, step)
+                tf.summary.text("inferenced_kor_text", inferenced_kor_text, step)
+                tf.summary.scalar("bleu", bleu_test, step)
 
-    if step % config.save_step == 0:
-      logger.info(f'Save model at step {step}')
-      ckpt_manager.save()
+        if step % config.save_step == 0:
+            logger.info(f"Save model at step {step}")
+            ckpt_manager.save()
 
-    ckpt.step.assign_add(1)
+        ckpt.step.assign_add(1)

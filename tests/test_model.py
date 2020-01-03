@@ -224,15 +224,6 @@ class MyTestCase(unittest.TestCase):
     self.assertEqual(np.array(aw).shape, (n_head, batch_size, seq_q, seq_v))
     self.assertAlmostEqual(np.sum(np.array(aw)[0][0][0]), 1.)
 
-  def test_encoder(self):
-    x = np.random.randint(0, 100, size=(self.batch_size, self.max_seq))
-    n_head = 8
-    n_layer = 6
-    encoder = TransformerEncoder(100, 100, n_layer, n_head, 200)
-    xs = encoder(x, attention_mask=create_pad_mask(x, 0), training=True)
-    self.assertEqual(
-        np.array(xs).shape, (n_layer, self.batch_size, self.max_seq, 100))
-
   def test_pad_mask(self):
     n_layer = 6
     n_head = 8
@@ -300,72 +291,6 @@ class MyTestCase(unittest.TestCase):
     pe = PositionalEmbedding(self.n_units, self.vocab_size)
     print(pe)
 
-  def test_decode_layer(self):
-    n_layer = 6
-    n_head = 8
-    vocab_size = self.vocab_size
-    d_model = self.n_units
-    seq_len = 5
-    decoder = TransformerDecoderLayer(vocab_size, d_model, n_layer, n_head,
-                                      d_model * 2, seq_len)
-
-    batch_size = 2
-    seq_len_input = 2
-    inputs = tf.random.normal(shape=(batch_size, seq_len_input, d_model))
-    q = np.random.randint(0, vocab_size, size=(batch_size, seq_len_input))
-    k = np.random.randint(0, vocab_size, size=(batch_size, seq_len))
-    outputs_encoder = tf.random.normal(shape=(batch_size, seq_len, d_model))
-    attention_mask = create_pad_mask(q, pad_idx=0)
-    self.assertEqual(attention_mask.shape, (batch_size, seq_len_input, seq_len))
-    self.assertEqual(inputs.shape, (batch_size, seq_len_input, d_model))
-    self.assertEqual(outputs_encoder.shape, (batch_size, seq_len, d_model))
-    self_attention_mask = create_pad_mask(q, 0)
-    self.assertEqual(self_attention_mask.shape,
-                     (batch_size, seq_len_input, seq_len_input))
-
-    x = decoder(inputs,
-                outputs_encoder,
-                attention_mask=attention_mask,
-                training=True,
-                self_attention_mask=self_attention_mask)
-    self.assertEqual(x.shape, (batch_size, seq_len_input, d_model))
-
-  def test_decoder(self):
-    n_layer = 6
-    d_model = 128
-    n_head = 8
-    vocab_size = self.vocab_size
-    d_ff = 2048
-    seq_len = self.max_seq
-    learned_pos_enc = False
-    batch_size = self.batch_size
-    decoder = TransformerDecoder(vocab_size, n_layer, d_model, n_head, d_ff,
-                                 seq_len, learned_pos_enc)
-    data_loader = DataLoader('../data/input/aihub_kor-eng/1.구어체.xlsx',
-                             n_data=10)
-    tokenizer: tf.keras.preprocessing.text.Tokenizer = data_loader.tokenizer.kor
-    pad_idx = tokenizer.word_index[tokenizer.oov_token]
-    self.assertEqual(tokenizer.oov_token, '<unk>')
-    self.assertEqual(pad_idx, 1)
-
-    start_tokens = tf.constant(
-        tokenizer.texts_to_sequences(['<start>'] * batch_size))
-    outputs_encoder = tf.random.normal(shape=(n_layer, batch_size, seq_len,
-                                              d_model),
-                                       dtype=tf.float32)
-    k = tf.random.uniform(shape=(batch_size, seq_len),
-                          dtype=tf.int32,
-                          minval=0,
-                          maxval=10)
-    attention_mask = create_pad_mask(start_tokens, k, 0)
-    self_attention_mask = create_pad_mask(start_tokens, start_tokens, 0)
-    logits = decoder(start_tokens,
-                     outputs_encoder,
-                     training=True,
-                     attention_mask=attention_mask,
-                     self_attention_mask=self_attention_mask)
-    self.assertEqual(logits.shape, (batch_size, 1, vocab_size))
-    # inputs = tf.random.uniform(shape=(batch_size, seq_len))
 
 
 if __name__ == '__main__':
