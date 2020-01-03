@@ -138,26 +138,23 @@ class MultiHeadAttention(Layer):
     def call(self, q, k, v, mask):
         """
 
-    Args:
-      q: `(batch_size, seq_q, d_model)`
-      k: `(batch_size, seq_k, d_model)`
-      v: `(batch_size, seq_v, d_model)`
-      mask: `(batch_size, 1, 1, seq_q)` or `(batch_size, 1, seq_q, seq_k)`
+        Args:
+            q: `(batch_size, seq_q, d_model)`
+            k: `(batch_size, seq_k, d_model)`
+            v: `(batch_size, seq_v, d_model)`
 
-    Returns:
-      context_vectors: `(batch_size, seq_q, d_model)`
-      attention_weights: `(n_head, batch_size, seq_q, seq_v)`
-    """
+        Returns:
+            context_vectors: `(batch_size, seq_q, d_model)`
+            attention_weights: `(n_head, batch_size, seq_q, seq_v)`
+        """
         batch_size = q.shape[0]
         seq_q, seq_k, seq_v = q.shape[1], k.shape[1], v.shape[1]
-        assert batch_size == k.shape[0] == v.shape[0]
 
-        # Linear projection
+        # Project linearly
         q = self.Wq(q)
         k = self.Wk(k)
         v = self.Wv(v)
 
-        # query_with_heads, shape == `(batch_size, n_head, seq_q, d_model)`
         query_with_heads = self.split_heads(q)
         keys_with_heads = self.split_heads(k)
         values_with_heads = self.split_heads(v)
@@ -166,12 +163,17 @@ class MultiHeadAttention(Layer):
             query_with_heads, keys_with_heads, values_with_heads, mask=mask
         )
 
+        # Check shapes of heads
         assert context_vector.shape == (batch_size, self.n_head, seq_q, self.dh)
+
+        # Combine heads
         context_vector = tf.transpose(context_vector, perm=[0, 2, 1, 3])
         assert context_vector.shape == (batch_size, seq_q, self.n_head, self.dh)
         context_vector = tf.reshape(
-            context_vector, shape=(batch_size, -1, self.d_model)
+            context_vector, shape=(batch_size, seq_q, self.d_model)
         )
+
+        # Project linearly
         context_vector = self.Wo(context_vector)
         assert context_vector.shape == (batch_size, seq_q, self.d_model)
 
