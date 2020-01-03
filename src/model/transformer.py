@@ -1,7 +1,7 @@
 import numpy as np
 import tensorflow as tf
 
-INF = 10e9
+INF = 1e7
 
 keras = tf.keras
 LSTM = keras.layers.LSTM
@@ -69,42 +69,43 @@ class ScaledDotProductAttention(Layer):
     def call(self, q, k, v, mask):
         """
 
-    Args:
-      q: `(batch_size, n_head, seq_q, d_model)`
-      k: `(batch_size, n_head, seq_k, d_model)`
-      v: `(batch_size, n_head, seq_v, d_model)`
-      In case of self attention, q = k = v
-      mask: `(batch_size, 1, 1, seq_k)`: mask padding tokens.
-      or `(batch_size, 1, seq_q, seq_k)`: to block inappropriate information and also mask padding tokens.
+        Args:
+        q: `(..., seq_q, d_model)`
+        k: `(..., seq_k, d_model)`
+        v: `(..., seq_v, d_model)`
+            In case of self attention, q = k = v
+            key == value
+        mask:
+            `(..., 1, seq_k)`: padding mask, broadcastable.
+            or `(..., seq_q, seq_k)`: to block inappropriate information and also mask padding tokens.
 
-    Returns:
-      context_vector: `(batch_size, n_head, seq_q, d_model)`
-      attention_weights: `(batch_size, n_head, seq_q, seq_v)`
-    """
-        batch_size = q.shape[0]
-        n_head = q.shape[1]
-        seq_q, seq_k, seq_v = q.shape[2], k.shape[2], v.shape[2]
-        d_model_q, d_model_k, d_model_v = q.shape[3], k.shape[3], v.shape[3]
-        assert batch_size == k.shape[0] == v.shape[0]
-        assert n_head == k.shape[1] == v.shape[1]
+        Returns:
+         context_vector: `(..., seq_k, d_model)`
+         attention_weights: `(..., seq_q, seq_k)`
+        """
+        seq_q, seq_k, seq_v = q.shape[-2], k.shape[-2], v.shape[-2]
+        d_model_q, d_model_k, d_model_v = q.shape[-1], k.shape[-1], v.shape[-1]
 
+        # dot product between query's last axis and key's last axis
         score = tf.matmul(q, k, transpose_b=True)
-        score_logits = tf.divide(score, tf.sqrt(tf.cast(d_model_q, dtype=tf.float32)))
-        assert score_logits.shape == (batch_size, n_head, seq_q, seq_k)
+        # scaling according to key's dimension size
+        score_logits = tf.divide(score, tf.sqrt(tf.cast(d_model_k, dtype=tf.float32)))
 
         if mask is not None:
-            score_logits = score_logits + (
-                mask * -INF
-            )  # masking: -inf 로 만들어서 softmax function 의 영향력이 없도록 함
+            # masking: -inf 로 만들어서 softmax function 의 영향력이 없도록 함
+            score_logits = score_logits + mask * -INF
 
+        # TODO apply dropout to attention weights (official tensorflow transformer)
+        # https://www.groundai.com/project/dropattention-a-regularization-method-for-fully-connected-self-attention-networks/1
         attention_weights = tf.math.softmax(score_logits, axis=-1)
-        assert attention_weights.shape == (batch_size, n_head, seq_q, seq_k)
-        assert v.shape == (batch_size, n_head, seq_k, d_model_v)
 
-        # attention weights 각각의 행에는 value 들에 대한 score가 있고 각각에 대응하는 value 는 열벡터이므로, 자연스럽게 weighted sum 이 됨
+        assert attention_weights.shape[-2:] == (seq_q, seq_k)
+        assert v.shape[-2:] == (seq_k, d_model_v)
+
+        # Weighted sum.
         context_vector = tf.matmul(attention_weights, v)
-        assert context_vector.shape == (batch_size, n_head, seq_q, d_model_v)
 
+        assert context_vector.shape[-2:] == (seq_v,)
         return context_vector, attention_weights
 
 
