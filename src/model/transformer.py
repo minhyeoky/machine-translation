@@ -14,25 +14,50 @@ LayerNorm = keras.layers.LayerNormalization
 Embedding = keras.layers.Embedding
 
 
-class PositionWiseFeedForward(Layer):
-    def __init__(self, d_ff, d_model):
-        super(PositionWiseFeedForward, self).__init__()
-        self.W1 = Dense(units=d_ff, activation="relu")
-        self.W2 = Dense(units=d_model, activation=None)
+class PositionWiseFeedFoward(Layer):
+    def __init__(self, d_ff, d_model, dropout_rate):
+        super(PositionWiseFeedFoward, self).__init__()
+        self.W1 = Dense(units=d_ff, use_bias=True, activation="relu")
+        self.W2 = Dense(units=d_model, use_bias=True, activation=None)
 
-    def call(self, inputs, **kwargs):
+        self.dropout = tf.keras.layers.Dropout(rate=dropout_rate)
+
+    def call(self, x, padding=None, training=True):
         """
 
-    Args:
-      inputs: `(batch_size, seq_pos, d_model)`
-      **kwargs:
+        Args:
+            x: `(batch_size, seq_len, d_model)`
 
-    Returns:
-      outputs: `(batch_size, seq_pos, d_model)`
-    """
+        Returns:
+            outputs: `(batch_size, seq_len, d_model)`
+        """
+        batch_size = x.shape[0]
+        seq_len = x.shape[1]
+        d_model = x.shape[2]
 
-        x = self.W1(inputs)
+        if padding is not None:
+            pad_mask = tf.reshape(padding, shape=[-1], name="pad_mask")
+            nonpad_ids = tf.cast(tf.where(pad_mask == 1), dtype=tf.int32)
+
+            #
+            x = tf.reshape(x, shape=[-1])
+            x = tf.gather_nd(
+                x, indices=nonpad_ids, batch_dims=0, name="exclude_padding"
+            )
+            x = tf.expand_dims(x, axis=0)
+            assert x.shape == (1, nonpad_ids.shape[0], d_model)
+
+        x = self.W1(x)
+        x = self.dropout(x, training=training)
         x = self.W2(x)
+
+        if padding is not None:
+
+            x = tf.squeeze(x, axis=0)
+            x = tf.scatter_nd(
+                indices=nonpad_ids, updates=x, shape=(batch_size * seq_len, d_model)
+            )
+            x = tf.reshape(x, shape=[batch_size, seq_len, d_model])
 
         return x
 
@@ -179,7 +204,7 @@ class EncoderLayer(Layer):
         super(EncoderLayer, self).__init__()
 
         self.multi_head_attention = MultiHeadAttention(n_head, d_model)
-        self.position_wise_feed_forward = PositionWiseFeedForward(d_ff, d_model)
+        self.position_wise_feed_forward = PositionWiseFeedFoward(d_ff, d_model)
         self.layer_norm_1 = LayerNorm()
         self.layer_norm_2 = LayerNorm()
         self.dropout = Dropout(rate=0.1)
@@ -242,7 +267,7 @@ class DecoderLayer(Layer):
         # Sub layers
         self.masked_multi_head_attention = MultiHeadAttention(n_head, d_model)
         self.multi_head_attention = MultiHeadAttention(n_head, d_model)
-        self.positional_feed_forward = PositionWiseFeedForward(d_ff, d_model)
+        self.positional_feed_forward = PositionWiseFeedFoward(d_ff, d_model)
         self.layer_norm = (LayerNorm(), LayerNorm(), LayerNorm())
         self.dropout = Dropout(rate=0.1)
 
