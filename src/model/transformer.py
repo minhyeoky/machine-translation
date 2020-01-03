@@ -111,10 +111,10 @@ class MultiHeadAttention(Layer):
     self.n_head = n_head
 
     # Linear transformation
-    self.Wq = Dense(units=d_model, activation=None)
-    self.Wk = Dense(units=d_model, activation=None)
-    self.Wv = Dense(units=d_model, activation=None)
-    self.Wo = Dense(units=d_model, activation=None)
+    self.Wq = Dense(units=d_model, use_bias=False, activation=None)
+    self.Wk = Dense(units=d_model, use_bias=False, activation=None)
+    self.Wv = Dense(units=d_model, use_bias=False, activation=None)
+    self.Wo = Dense(units=d_model, use_bias=False, activation=None)
     self.dh = d_model // n_head
     assert d_model % n_head == 0.
     self.scaled_dot_product_attention = ScaledDotProductAttention()
