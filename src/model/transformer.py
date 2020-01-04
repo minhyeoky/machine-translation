@@ -357,16 +357,16 @@ class SharedEmbedding(Layer):
         to convert the decoder output to predicted next-token probabilities
 
         Args:
-            # decoder_output: with shape [batch_size, seq_len,
+            decoder_output: with shape [batch_size, seq_len, d_model]
 
         Returns:
-
+            logits of the transformer with shape [batch_size, seq_len, vocab_size]
         """
         # Share the same weight matrix between the two embedding layers and the pre-softmax
-        decoder_output = tf.matmul(
+        logits = tf.matmul(
             decoder_output, self.embedding.trainable_weights[0], transpose_b=True
         )
-        return tf.keras.activations.softmax(decoder_output)
+        return logits
 
 
 class Decoder(Model):
