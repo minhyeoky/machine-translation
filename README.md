@@ -11,6 +11,7 @@
 - [ ] 텐서플로 코드 테스트에 대해 알아보기
 - [ ] GPT, XLNet
 - [ ] generation 말고 다른 task
+- [ ] 로깅 정리
 
 ## Visualization
 - [x] BLEU [train, test]

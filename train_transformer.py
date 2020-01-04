@@ -101,7 +101,7 @@ else:
 
 
 # Training & Inference
-# @tf.function
+@tf.function
 def train_step(ori_train, tar_train):
     """
 
@@ -139,7 +139,7 @@ def train_step(ori_train, tar_train):
     return loss
 
 
-# @tf.function
+@tf.function
 def inference(data):
     batch_size = data.shape[0]
 
