@@ -2,6 +2,8 @@ import tensorflow as tf
 
 from src.model.transformer_utils import positional_encoding
 
+MAX_POSITION = 10000
+
 INF = 1e7
 
 keras = tf.keras
@@ -322,32 +324,56 @@ class DecoderLayer(Layer):
         return x
 
 
-class PositionalEmbedding(Layer):
-    def __init__(self, d_model, vocab_size):
-        super(PositionalEmbedding, self).__init__()
-        self.embedding = Embedding(vocab_size, d_model)
-        self.d_model = d_model
-
-    def call(self, inputs, seq_len):
+class SharedEmbedding(Layer):
+    def __init__(self, vocab_size, d_model):
         """
 
-    Args:
-      inputs: `(batch_size, seq_len)`
-      seq_len: position
+        Args:
+            vocab_size:
+            d_model:
+        """
+        super(Embedding, self).__init__()
 
-    Returns:
-      outputs: `(batch_size, seq_len, d_model)`
-    """
-        seq_len = inputs.shape[1]
+        self.embedding = Embedding(vocab_size, d_model)
+        self.positional_encoding = positional_encoding(MAX_POSITION, d_model)
 
-        pos_enc = positional_encoding(1000, self.d_model)[:, :seq_len, :]
-        embedded_inputs = self.embedding(inputs)
-        embedded_inputs *= tf.sqrt(tf.cast(self.d_model, tf.float32))  # ??
-        embedded_inputs = embedded_inputs + pos_enc
-        assert embedded_inputs.shape == inputs.shape + (
-            self.d_model,
-        )  # (batch_size, seq_len, d_model)
-        return embedded_inputs
+    def call(self, x):
+        """
+        Use learned embeddings to convert the input
+        tokens and output tokens to vectors of dimension d_model.
+
+        Args:
+            x: input tensor with shape [batch_size, length] and dtype int32
+
+        Returns:
+            y: embedded tensor with shape [batch_size, length, d_model]
+        """
+        length = x.shape[-1]
+        d_model = tf.cast(x.shape[-1], dtype=tf.float32)
+
+        x = self.embedding(x)
+        # Scale embedding by sqrt of the hidden size.
+        x *= tf.sqrt(d_model)
+        # Inject some information about the relative or absolute position of the tokens.
+        x += self.positional_encoding[:, :length, :]
+        return x
+
+    def predict(self, decoder_output):
+        """
+        Use the usual learned linear transformation and softmax function
+        to convert the decoder output to predicted next-token probabilities
+
+        Args:
+            # decoder_output: with shape [batch_size, seq_len,
+
+        Returns:
+
+        """
+        # Share the same weight matrix between the two embedding layers and the pre-softmax
+        decoder_output = tf.matmul(
+            decoder_output, self.embedding.trainable_weights[0], transpose_b=True
+        )
+        return tf.keras.activations.softmax(decoder_output)
 
 
 class Decoder(Model):
