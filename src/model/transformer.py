@@ -47,7 +47,7 @@ class PositionWiseFeedFoward(Layer):
                 x, indices=nonpad_ids, batch_dims=0, name="exclude_padding"
             )
             x = tf.expand_dims(x, axis=0)
-            assert x.shape == (1, nonpad_ids.shape[0], d_model)
+            # assert x.shape == (1, nonpad_ids.shape[0], d_model)
 
         x = self.W1(x)
         x = self.dropout(x, training=training)

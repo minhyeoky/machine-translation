@@ -4,7 +4,7 @@ import tensorflow as tf
 import argparse
 import logging
 
-from src.data.data_loader import DataLoader
+from src.data.data_loader_transformer import DataLoader
 
 from src.config import Config
 from src.model.loss import transformer_train_loss
@@ -61,9 +61,9 @@ dataset_test_iterator = iter(dataset_test)
 
 # Tokenizer
 logger.info("Getting Tokenizer")
-tokenizers = data_loader.tokenizer
-tokenizer_ori: tf.keras.preprocessing.text.Tokenizer = tokenizers.ori
-tokenizer_tar: tf.keras.preprocessing.text.Tokenizer = tokenizers.tar
+tokenizer = data_loader.tokenizer
+tokenizer_ori: tf.keras.preprocessing.text.Tokenizer = tokenizer
+tokenizer_tar: tf.keras.preprocessing.text.Tokenizer = tokenizer
 
 # Model
 # encoder = Encoder(vocab_size_ori, **config.encoder['args'])
