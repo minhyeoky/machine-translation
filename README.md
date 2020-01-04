@@ -24,6 +24,8 @@
     - [ ] Transformer
   
 ## References
+- [NMT by jointly learning to align and translate](https://arxiv.org/pdf/1409.0473.pdf)
+- [attention is all you need](https://arxiv.org/abs/1706.03762)
 - [Tensorflow-tutorials](https://www.tensorflow.org/tutorials/text/nmt_with_attention)
 - [huggingface](https://github.com/huggingface/transformers)
 - [tensorflow-models](https://github.com/tensorflow/models)
