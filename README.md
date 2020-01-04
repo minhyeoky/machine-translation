@@ -1,14 +1,15 @@
 # My NLP playground
 
-## Objectives
-1. Make flexible deeplearning project template
-2. Compare performances of different models & methods
-3. Understand and implement attention mechanism
-
 ## Models
 - [x] Seq2seq
 - [x] Attention
-- [ ] Transformer
+- [x] Transformer
+
+## TODO
+- [ ] run.sh 인자 파싱 파이썬에서 하기
+- [ ] 설정파일 갈아 엎기
+- [ ] GPT 구현하기
+- [ ] 텐서플로 코드 테스트에 대해 알아보기
 
 ## Visualization
 - [x] BLEU [train, test]
@@ -16,42 +17,11 @@
 - [x] Times per step
 - [x] Text examples [train, test]
 - [ ] Number of parameters
-- [ ] Visualize attention weights
+- [ ] Visualize attention weights map
     - [ ] Bahdanau seq2seq
     - [ ] Transformer
   
-## Principles
-1. Well defined entry point for train & inference
-2. From raw data to trained model
-3. Notebooks are not allowed to push
-4. All Configurations are controlled under json file
-5. Use english
-6. Test wherever possible
-
-## Directory structure
-```
-📦nmt
- ┣ 📂config
- ┣ 📂data
- ┃ ┣ 📂input
- ┃ ┗ 📂output
- ┣ 📂script
- ┣ 📂src
- ┃ ┣ 📂data
- ┃ ┣ 📂log
- ┃ ┣ 📂model
- ┃ ┣ 📂preprocessor
- ┃ ┣ 📜__init__.py
- ┃ ┣ 📜config.py
- ┃ ┗ 📜utils.py
- ┣ 📂tests
- ┣ 📜.gitignore
- ┣ 📜README.md
- ┣ 📜requirements.txt
- ┣ 📜run.sh
- ┗ 📜train.py
-```
-
 ## References
 - [Tensorflow-tutorials](https://www.tensorflow.org/tutorials/text/nmt_with_attention)
 - [huggingface](https://github.com/huggingface/transformers)
+- [tensorflow-models](https://github.com/tensorflow/models)
