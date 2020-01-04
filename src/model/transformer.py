@@ -230,40 +230,34 @@ class EncoderLayer(Layer):
 
 
 class Encoder(Model):
-    def __init__(self, vocab_size, d_model, n_layer, n_head, d_ff):
+    def __init__(self, d_model, n_layer, n_head, d_ff, dropout_rate):
         super(Encoder, self).__init__()
 
         self.d_model = d_model
         self.n_layer = n_layer
 
-        self.pos_embed = PositionalEmbedding(d_model, vocab_size)
         self.encoder_layers = [
-            EncoderLayer(d_model, n_head, d_ff) for _ in range(n_layer)
+            EncoderLayer(d_model, n_head, d_ff, dropout_rate) for _ in range(n_layer)
         ]
-        self.dropout = Dropout(rate=0.1)
+        self.dropout = Dropout(rate=dropout_rate)
 
-    def call(self, inputs, training, pad_mask, **kwargs):
+    def call(self, x, training, pad_mask, **kwargs):
         """
 
-    Args:
-      inputs: `(batch_size, seq_len)`
-      **kwargs:
+        Args:
+            x: input tensor with shape [batch_size, seq_len, d_model]
 
-    Returns:
-      x_s: `(n_layer, batch_size, seq_len, d_model)`
-        outputs of layers
+        Returns:
+            x: output tensor with shape [batch_size, seq_len, d_model]
 
-    """
-
-        # Embedding
-        seq_len = inputs.shape[1]
-        x = self.pos_embed(inputs, seq_len)
+        """
+        # Apply dropout to embedded input
         x = self.dropout(x)
 
-        for i in range(self.n_layer):
-            x = self.encoder_layers[i](x, mask=pad_mask, training=training)
+        for layer in self.encoder_layers:
+            x = layer(x, mask=pad_mask, training=training)
 
-        return x  # (batch_size, seq_len, d_model)
+        return x
 
 
 class DecoderLayer(Layer):
