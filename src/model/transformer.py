@@ -415,52 +415,39 @@ class Decoder(Model):
 
 
 class Transformer(tf.keras.Model):
-    def __init__(
-        self, n_layer, d_model, n_head, d_ff, input_vocab_size, target_vocab_size
-    ):
+    def __init__(self, n_layer, d_model, n_head, d_ff, vocab_size, dropout_rate):
         super(Transformer, self).__init__()
 
-        self.encoder = Encoder(
-            n_layer=n_layer,
-            d_model=d_model,
-            n_head=n_head,
-            d_ff=d_ff,
-            vocab_size=input_vocab_size,
-        )
+        self.positional_encoding = positional_encoding(MAX_POSITION, d_model)
+        self.shared_embedding = SharedEmbedding(vocab_size, d_model)
+        self.encoder = Encoder(n_layer, d_model, n_head, d_ff, dropout_rate)
+        self.decoder = Decoder(n_layer, d_model, n_head, d_ff, dropout_rate)
 
-        self.decoder = Decoder(
-            n_layer=n_layer,
-            d_model=d_model,
-            n_head=n_head,
-            d_ff=d_ff,
-            vocab_size=target_vocab_size,
-        )
-        self.target_vocab_size = target_vocab_size
-
-        self.final_layer = tf.keras.layers.Dense(target_vocab_size)
+        self.logit_layer = tf.keras.layers.Dense(vocab_size)
 
     def call(
-        self, inputs, training, enc_pad_mask, dec_pad_mask, look_ahead_mask, **kwargs
+        self,
+        x,
+        y,
+        training,
+        enc_self_attention_mask,
+        dec_attention_mask,
+        dec_self_attention_mask,
     ):
         """
 
-    Args:
+        Args:
+            x: input tensor with shape [batch_size, seq_len_inp]
+            y: target tensor with shape [batch_size, seq_len_tar]
 
-    Returns:
-      outputs: `(batch_size, tar_seq_len, tar_vocab_size)`
-      attention_weights: 
+        Returns:
+            logits
 
-    """
-        inp, tar = inputs
+        """
+        x, y = self.shared_embedding(x), self.shared_embedding(y)
 
-        enc_output = self.encoder(inp, training, enc_pad_mask)
-        dec_output = self.decoder(
-            tar, enc_output, training, dec_pad_mask, look_ahead_mask
-        )
+        x = self.encoder(x, training, enc_self_attention_mask)
+        y = self.decoder(x, y, training, dec_attention_mask, dec_self_attention_mask)
 
-        final_output = self.final_layer(
-            dec_output
-        )  # (batch_size, tar_seq_len, target_vocab_size)
-        batch_size, tar_seq_len = inp.shape[0], tar.shape[1]
-        assert final_output.shape == (batch_size, tar_seq_len, self.target_vocab_size)
-        return final_output
+        logits = self.shared_embedding.predict(y)
+        return logits
