@@ -42,8 +42,7 @@ class PositionWiseFeedFoward(Layer):
             pad_mask = tf.reshape(padding, shape=[-1], name="pad_mask")
             nonpad_ids = tf.cast(tf.where(pad_mask == 1), dtype=tf.int32)
 
-            #
-            x = tf.reshape(x, shape=[-1])
+            x = tf.reshape(x, shape=[-1, d_model])
             x = tf.gather_nd(
                 x, indices=nonpad_ids, batch_dims=0, name="exclude_padding"
             )
@@ -108,7 +107,7 @@ class ScaledDotProductAttention(Layer):
         # Weighted sum.
         context_vector = tf.matmul(attention_weights, v)
 
-        assert context_vector.shape[-2:] == (seq_v,)
+        assert context_vector.shape[-2:] == (seq_q, d_model_v)
         return context_vector, attention_weights
 
 
@@ -188,7 +187,9 @@ class EncoderLayer(Layer):
         super(EncoderLayer, self).__init__()
 
         self.multi_head_attention = MultiHeadAttention(n_head, d_model)
-        self.position_wise_feed_forward = PositionWiseFeedFoward(d_ff, d_model)
+        self.position_wise_feed_forward = PositionWiseFeedFoward(
+            d_ff, d_model, dropout_rate
+        )
         self.layer_norm1 = LayerNorm()
         self.layer_norm2 = LayerNorm()
 
@@ -213,7 +214,7 @@ class EncoderLayer(Layer):
         )
         # Apply dropout to the output of each sub-layer,
         # before adding sub-layer's input and normalizing
-        sub_layer_output = self.dropout(sub_layer_output, trainig=training)
+        sub_layer_output = self.dropout(sub_layer_output, training=training)
         sub_layer_output = sub_layer_input + sub_layer_output
         sub_layer_output = self.layer_norm1(sub_layer_output, training=training)
 
@@ -224,7 +225,7 @@ class EncoderLayer(Layer):
         )
         # Apply dropout to the output of each sub-layer,
         # before adding sub-layer's input and normalizing
-        sub_layer_output = self.dropout(sub_layer_output, trainig=training)
+        sub_layer_output = self.dropout(sub_layer_output, training=training)
         sub_layer_output = sub_layer_input + sub_layer_output
         sub_layer_output = self.layer_norm2(sub_layer_output, training=training)
 
@@ -232,7 +233,7 @@ class EncoderLayer(Layer):
 
 
 class Encoder(Model):
-    def __init__(self, d_model, n_layer, n_head, d_ff, dropout_rate):
+    def __init__(self, n_layer, d_model, n_head, d_ff, dropout_rate):
         super(Encoder, self).__init__()
 
         self.d_model = d_model
@@ -254,7 +255,7 @@ class Encoder(Model):
 
         """
         # Apply dropout to embedded input
-        x = self.dropout(x)
+        x = self.dropout(x, training=training)
 
         for layer in self.encoder_layers:
             x = layer(x, mask=pad_mask, training=training)
@@ -268,7 +269,9 @@ class DecoderLayer(Layer):
 
         self.masked_multi_head_attention = MultiHeadAttention(n_head, d_model)
         self.multi_head_attention = MultiHeadAttention(n_head, d_model)
-        self.positional_feed_forward = PositionWiseFeedFoward(d_ff, d_model)
+        self.positional_feed_forward = PositionWiseFeedFoward(
+            d_ff, d_model, dropout_rate
+        )
         self.norm1 = LayerNorm()
         self.norm2 = LayerNorm()
         self.norm3 = LayerNorm()
@@ -325,7 +328,7 @@ class SharedEmbedding(Layer):
             vocab_size:
             d_model:
         """
-        super(Embedding, self).__init__()
+        super(SharedEmbedding, self).__init__()
 
         self.embedding = Embedding(vocab_size, d_model)
         self.positional_encoding = positional_encoding(MAX_POSITION, d_model)
@@ -427,8 +430,7 @@ class Transformer(tf.keras.Model):
 
     def call(
         self,
-        x,
-        y,
+        inputs,
         training,
         enc_self_attention_mask,
         dec_attention_mask,
@@ -444,6 +446,7 @@ class Transformer(tf.keras.Model):
             logits
 
         """
+        x, y = inputs
         x, y = self.shared_embedding(x), self.shared_embedding(y)
 
         x = self.encoder(x, training, enc_self_attention_mask)

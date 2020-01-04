@@ -2,6 +2,7 @@ from collections import namedtuple
 from time import time
 import tensorflow as tf
 import argparse
+import logging
 
 from src.data.data_loader import DataLoader
 
@@ -17,7 +18,8 @@ PREFETCH = tf.data.experimental.AUTOTUNE
 sparse_categorical_crossentropy = keras.losses.sparse_categorical_crossentropy
 # Assign variables & logger
 Adam = keras.optimizers.Adam
-logger = tf.get_logger()
+logging.basicConfig(level="DEBUG")
+logger = logging.getLogger(__file__)
 
 # Arguments
 logger.info("Parsing arguments")
@@ -54,6 +56,7 @@ dataset_test = (
     .repeat()
     .prefetch(PREFETCH)
 )
+
 dataset_test_iterator = iter(dataset_test)
 
 # Tokenizer
@@ -61,16 +64,12 @@ logger.info("Getting Tokenizer")
 tokenizers = data_loader.tokenizer
 tokenizer_ori: tf.keras.preprocessing.text.Tokenizer = tokenizers.ori
 tokenizer_tar: tf.keras.preprocessing.text.Tokenizer = tokenizers.tar
-vocab_size_tar = len(tokenizer_tar.word_index) + 1
-vocab_size_ori = len(tokenizer_ori.word_index) + 1
 
 # Model
 # encoder = Encoder(vocab_size_ori, **config.encoder['args'])
 # decoder = Decoder(vocab_size_tar, **config.decoder['args'])
 transformer = Transformer(
-    target_vocab_size=vocab_size_tar,
-    input_vocab_size=vocab_size_ori,
-    **config.transformer["args"],
+    vocab_size=data_loader.vocab_size, **config.transformer["args"]
 )
 
 # Tensorboard
@@ -102,7 +101,7 @@ else:
 
 
 # Training & Inference
-@tf.function
+# @tf.function
 def train_step(ori_train, tar_train):
     """
 
@@ -117,17 +116,18 @@ def train_step(ori_train, tar_train):
     labels = tar_train[:, 1:]
 
     with tf.GradientTape() as tape:
-        enc_pad_mask = create_pad_mask(ori_train, pad_idx)
-        dec_pad_mask = create_pad_mask(ori_train, pad_idx)
-        look_ahead_mask = create_look_ahead_mask(decoder_inputs.shape[1])
-        self_attention_mask = create_pad_mask(decoder_inputs, pad_idx)
-        look_ahead_mask = tf.maximum(self_attention_mask, look_ahead_mask)
+        enc_self_attention_mask = create_pad_mask(ori_train, pad_idx)
+        dec_attention_mask = enc_self_attention_mask
+        dec_self_attention_mask = create_look_ahead_mask(decoder_inputs.shape[1])
+        dec_self_attention_mask = tf.maximum(
+            create_pad_mask(decoder_inputs, pad_idx), dec_self_attention_mask
+        )
         logits = transformer(
             inputs=(ori_train, decoder_inputs),
             training=True,
-            enc_pad_mask=enc_pad_mask,
-            dec_pad_mask=dec_pad_mask,
-            look_ahead_mask=look_ahead_mask,
+            enc_self_attention_mask=enc_self_attention_mask,
+            dec_attention_mask=dec_attention_mask,
+            dec_self_attention_mask=dec_self_attention_mask,
         )
 
         loss = transformer_train_loss(logits, labels, pad_idx)
@@ -139,7 +139,7 @@ def train_step(ori_train, tar_train):
     return loss
 
 
-@tf.function
+# @tf.function
 def inference(data):
     batch_size = data.shape[0]
 
@@ -148,18 +148,19 @@ def inference(data):
     )
 
     for i in range(MAX_INFERENCE_LEN):
-        enc_pad_mask = create_pad_mask(data, pad_idx)
-        dec_self_attention_mask = create_pad_mask(input_decoder, pad_idx)
-        look_ahead_mask = create_look_ahead_mask(input_decoder.shape[1])
-        look_ahead_mask = tf.maximum(dec_self_attention_mask, look_ahead_mask)
-        dec_pad_mask = create_pad_mask(data, pad_idx)
+        enc_self_attention_mask = create_pad_mask(data, pad_idx)
+        dec_self_attention_mask = create_look_ahead_mask(input_decoder.shape[1])
+        dec_self_attention_mask = tf.maximum(
+            create_pad_mask(input_decoder, pad_idx), dec_self_attention_mask
+        )
+        dec_attention_mask = enc_self_attention_mask
 
         logits = transformer(
             inputs=(data, input_decoder),
             training=False,
-            enc_pad_mask=enc_pad_mask,
-            dec_pad_mask=dec_pad_mask,
-            look_ahead_mask=look_ahead_mask,
+            enc_self_attention_mask=enc_self_attention_mask,
+            dec_attention_mask=dec_attention_mask,
+            dec_self_attention_mask=dec_self_attention_mask,
         )
         logits = logits[:, -1, :]
         probs = tf.math.softmax(logits, axis=-1)

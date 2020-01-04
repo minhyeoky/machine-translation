@@ -10,14 +10,16 @@ class TestDataLoader(unittest.TestCase):
         self.n_data = 10
         self.validation_split = 0.5
         self.batch_size = 2
+        self.datapath_kor = "../data/input/aihub_kor-eng/1.구어체.xlsx"
         self.data_loader = DataLoader(
-            "../data/input/aihub_kor-eng/1.구어체.xlsx",
+            self.datapath_kor,
             n_data=self.n_data,
             validation_split=self.validation_split,
             deu=False,
         )
+        self.datapath_deu = "../data/input/deu.txt"
         self.data_loader_deu = DataLoader(
-            "../data/input/deu.txt",
+            self.datapath_deu,
             n_data=self.n_data,
             validation_split=self.validation_split,
             deu=True,
@@ -88,6 +90,17 @@ class TestDataLoader(unittest.TestCase):
         print(self.data_loader_deu.tokenizer.ori.num_words)
         print(self.data_loader_deu.tokenizer.ori.index_docs)
         print(self.data_loader_deu.tokenizer.ori.word_docs)
+
+    def test_vocab_size(self):
+        num_words = 10000
+        data_loader = DataLoader(
+            self.datapath_kor,
+            n_data=None,
+            validation_split=0.1,
+            deu=False,
+            num_words=num_words,
+        )
+        print()
 
 
 if __name__ == "__main__":

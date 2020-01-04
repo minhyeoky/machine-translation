@@ -137,17 +137,9 @@ class DataLoader(DataLoaderBase):
         ori_test = self._tokenize(ori_test, self.tokenizer.ori, fit=False)
         tar_test = self._tokenize(tar_test, self.tokenizer.tar, fit=False)
 
-        self._calc_vocab_size()
-        logger.info(f" Original vocab size: {self.ori_vocab_size}")
-        logger.info(f" Target vocab size: {self.tar_vocab_size}")
-
         self.data_train = Data(ori=ori_train, tar=tar_train)
         self.data_test = Data(ori=ori_test, tar=tar_test)
 
-    def _calc_vocab_size(self):
-        if self.num_words:
-            self.ori_vocab_size = self.num_words
-            self.tar_vocab_size = self.num_words
-        else:
-            self.ori_vocab_size = len(self.tokenizer.ori.word_index) + 1
-            self.tar_vocab_size = len(self.tokenizer.tar.word_index) + 1
+    @property
+    def vocab_size(self):
+        return self.num_words

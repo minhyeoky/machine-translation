@@ -68,8 +68,8 @@ class MyTestCase(unittest.TestCase):
 
   # def test_encoder(self):
   #   encoder = Encoder(vocab_size=10, n_units=128)
-  #   inputs = self.test_data, encoder.initial_state(2)
-  #   outputs, h, c = encoder(inputs, training=True)
+  #   x = self.test_data, encoder.initial_state(2)
+  #   outputs, h, c = encoder(x, training=True)
   #   self.assertEqual(outputs.shape, (self.batch_size, 5, self.n_units))
   #   self.assertEqual(h.shape, (self.batch_size, self.n_units))
   #   self.assertEqual(c.shape, (self.batch_size, self.n_units))
@@ -158,138 +158,6 @@ class MyTestCase(unittest.TestCase):
   # print(tf.tensordot(query_with_heads, dense_layer(keys)))
   # tf.do
 
-  def test_look_ahead_mask(self):
-
-    def create_look_ahead_mask(size):
-      # https://www.tensorflow.org/tutorials/text/transformer#positional_encoding
-      mask = 1 - tf.linalg.band_part(tf.ones((size, size)), -1, 0)
-      return mask    # (seq_len, seq_len)
-
-    seq_len = 5
-    batch_size = 5
-    x = tf.random.uniform(shape=(batch_size, seq_len),
-                          dtype=tf.int32,
-                          maxval=100)
-    mask = create_look_ahead_mask(x, seq_len)
-    mask_reference = create_look_ahead_mask(seq_len)
-    print(mask_reference)
-    self.assertEqual(mask_reference.shape, (seq_len, seq_len))
-    mask_reference = list(tf.reshape(mask_reference, shape=(-1,)).numpy())
-    self.assertEqual(mask.shape, (batch_size, seq_len, seq_len))
-    my_mask = list(tf.reshape(mask[0], shape=(-1,)).numpy())
-    print("mask_reference", mask_reference)
-    print("my_mask", my_mask)
-    self.assertListEqual(mask_reference, my_mask)
-
-    # print(mask)
-
-  def test_scaled_dot_product_attention(self):
-    scaled_dot_product_attention = ScaledDotProductAttention()
-    seq_q = 5
-    seq_kv = 6
-    d_model = 25
-    q, k, v = self.q, self.k, self.v
-    batch_size = 1
-    seq_q = 1
-    seq_k = 4
-    seq_v = 4
-
-    c, aw = scaled_dot_product_attention(q, k, v, pad_mask=None)
-    aw_list = list(aw.numpy()[0][0].astype(np.uint8))
-    self.assertEqual(aw.shape, (batch_size, seq_q, seq_k))
-    self.assertListEqual(aw_list, [0., 1., 0., 0.])
-    self.assertEqual(c.shape, (batch_size, seq_q, 2))
-    self.assertListEqual(list(c[0][0].numpy().astype(np.uint8)), [10., 0.])
-    self.assertEqual(aw.shape, (batch_size, seq_q, seq_v))
-    temp_q = tf.constant([[[0, 0, 10]]], dtype=tf.float32)
-    c, aw = scaled_dot_product_attention(temp_q, k, v, pad_mask=None)
-    aw_list = list(aw.numpy()[0][0].astype(np.float16))
-    self.assertListEqual(aw_list, [0., 0., 0.5, 0.5])
-    self.assertListEqual(list(c[0][0].numpy().astype(np.float32)), [550., 5.5])
-    aw_ = np.sum(aw[0][0].numpy())
-    self.assertEqual(aw_, 1.)
-
-  def test_multi_head_attention(self):
-
-    n_head = 5
-    batch_size = 1
-    seq_q = 1
-    seq_k = 4
-    seq_v = 4
-    q, k, v = self.q, self.k, self.v
-    d_model = q.shape[2]    # 3
-    mha = MultiHeadAttention(n_head, d_model)
-    c, aw = mha(q, k, v, mask=None)
-    self.assertEqual(c.shape, (batch_size, seq_q, d_model))
-    self.assertEqual(np.array(aw).shape, (n_head, batch_size, seq_q, seq_v))
-    self.assertAlmostEqual(np.sum(np.array(aw)[0][0][0]), 1.)
-
-  def test_pad_mask(self):
-    n_layer = 6
-    n_head = 8
-
-    x = self.x_for_mask
-
-    batch_size = 3
-    seq_len = 5
-
-    d_ff = 2048
-    te = TransformerEncoder(vocab_size=self.vocab_size,
-                            d_model=self.n_units,
-                            n_head=n_head,
-                            n_layer=n_layer,
-                            d_ff=d_ff,
-                            learned_pos_enc=True,
-                            seq_len=seq_len)
-
-    mask = create_pad_mask(x)
-    self.assertEqual(mask.shape, (batch_size, seq_len, seq_len))
-    self.assertListEqual(list(mask.numpy()[0][0]), [0., 0., 0., 0., 1.])
-
-    temp_score = tf.ones(shape=(batch_size, seq_len, seq_len))
-
-    mask *= -10e9
-    # mask = mask[:, tf.newaxis, tf.newaxis, :]
-    temp_score_masked = temp_score + mask
-    self.assertEqual(temp_score_masked.shape, (batch_size, seq_len, seq_len))
-    # print(temp_score_masked.numpy().astype(np.uint8))
-    #     tf.Tensor(
-    # [[[1. 1. 1. 1. 0.]
-    #   [1. 1. 1. 1. 0.]
-    #   [1. 1. 1. 1. 0.]
-    #   [1. 1. 1. 1. 0.]
-    #   [0. 0. 0. 0. 0.]]
-    #
-    #  [[1. 1. 1. 1. 0.]
-    #   [1. 1. 1. 1. 0.]
-    #   [1. 1. 1. 1. 0.]
-    #   [1. 1. 1. 1. 0.]
-    #   [0. 0. 0. 0. 0.]]
-    #
-    #  [[1. 1. 0. 0. 0.]
-    #   [1. 1. 0. 0. 0.]
-    #   [0. 0. 0. 0. 0.]
-    #   [0. 0. 0. 0. 0.]
-    #   [0. 0. 0. 0. 0.]]], shape=(3, 5, 5), dtype=float32)
-
-    # Decoder's Pad masks
-    q = tf.constant([[1, 2, 3, 4, 5, 0, 0], [1, 2, 3, 4, 5, 1, 0],
-                     [1, 2, 3, 4, 0, 0, 0], [1, 2, 3, 0, 0, 0, 0],
-                     [1, 2, 0, 0, 0, 0, 0]])    # (5, 7)
-    # yapf: disable
-    k = tf.constant([[1, 2, 3, 4, 5],
-                     [1, 2, 3, 4, 5],
-                     [1, 2, 3, 4, 0],
-                     [1, 2, 3, 0, 0],
-                     [0, 0, 0, 0, 0]])    # (5, 5)
-    # yapf: enable
-    mask = create_pad_mask(q, k, 0)
-    print(mask)
-    self.assertEqual(mask.shape, (5, 7, 5))
-
-  def test_position_embedding(self):
-    pe = PositionalEmbedding(self.n_units, self.vocab_size)
-    print(pe)
 
 
 

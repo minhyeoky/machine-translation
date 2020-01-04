@@ -9,14 +9,15 @@
     "ckpt_max_keep": 10
   },
   "train": {
-    "epochs": 20,
+    "epochs": 2000,
     "model": {
       "transformer": {
         "args": {
-          "d_model": 256,
+          "d_model": 512,
           "d_ff": 1024,
-          "n_head": 4,
-          "n_layer": 5
+          "n_head": 8,
+          "n_layer": 6,
+          "dropout_rate": 0.1
         }
       }
     },
@@ -36,9 +37,9 @@
     "batch_size": 32,
     "args": {
       "n_data": null,
-      "validation_split": 0.02,
-      "num_words": 3000,
-      "maxlen": 20
+      "validation_split": 0.01,
+      "num_words": 20000,
+      "maxlen": 25
     }
   }
 }

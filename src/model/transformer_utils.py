@@ -22,3 +22,7 @@ def positional_encoding(position, d_model):
 
     assert pos_encoding.shape == (1, position, d_model)
     return tf.cast(pos_encoding, dtype=tf.float32)
+
+
+if __name__ == "__main__":
+    print(positional_encoding(100, 10))
