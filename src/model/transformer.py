@@ -263,65 +263,58 @@ class Encoder(Model):
 
 
 class DecoderLayer(Layer):
-    def __init__(
-        self, vocab_size, d_model, n_head, d_ff, seq_len=None, *args, **kwargs
-    ):
-        super().__init__(*args, **kwargs)
-        self.d_model = d_model
-        self.seq_len = seq_len
+    def __init__(self, d_model, n_head, d_ff, dropout_rate):
+        super().__init__()
 
-        # Sub layers
         self.masked_multi_head_attention = MultiHeadAttention(n_head, d_model)
         self.multi_head_attention = MultiHeadAttention(n_head, d_model)
         self.positional_feed_forward = PositionWiseFeedFoward(d_ff, d_model)
-        self.layer_norm = (LayerNorm(), LayerNorm(), LayerNorm())
-        self.dropout = Dropout(rate=0.1)
+        self.norm1 = LayerNorm()
+        self.norm2 = LayerNorm()
+        self.norm3 = LayerNorm()
+        self.dropout = Dropout(rate=dropout_rate)
 
-    def call(
-        self,
-        x,
-        outputs_encoder,
-        training,
-        pad_mask=None,
-        look_ahead_mask=None,
-        **kwargs
-    ):
+    def call(self, x, y, training, attention_mask, self_attention_mask):
         """
 
-    Args:
-      inputs: `(batch_size, seq_len, d_model)`
-        Embedded & Position encoded input vector
-      outputs_encoder: `(batch_size, encoder_seq_len, d_model)`
-      training:
+        Args:
+            x: encoder's output tensor with shape [batch_size, seq_len_inp, d_model]
+            y: target tensor with shape [batch_size, seq_len_tar, d_model]
+            # TODO Write mask args
 
+        Returns:
+            output tensor with shape [batch_size, seq_len_tar, d_model]
+        """
 
-    Returns:
-      logits: `(batch_size, seq_len, d_model)`
-
-
-    """
-
-        # Decoder Layers
-        k = v = outputs_encoder
-
-        # 1
-        x = self.dropout(x)
-        __x, attention_weights_1 = self.masked_multi_head_attention(
-            x, x, x, mask=look_ahead_mask
+        # Self attention layer
+        sub_layer_input = y
+        sub_layer_output, _ = self.masked_multi_head_attention(
+            y, y, y, self_attention_mask
         )
-        x = self.layer_norm[0](x + __x, training=training)
+        # Apply dropout to the output of each sub-layer, before it is added to the sub-layer input and normalized
+        sub_layer_output = self.dropout(sub_layer_output, training=training)
+        sub_layer_output += sub_layer_input
+        sub_layer_output = self.norm1(sub_layer_output, training=training)
 
-        # 2
-        x = self.dropout(x)
-        __x, attention_weights_2 = self.multi_head_attention(x, k, v, mask=pad_mask)
-        x = self.layer_norm[1](x + __x, training=training)
+        # Attention layer
+        sub_layer_input = sub_layer_output
+        sub_layer_output, _ = self.multi_head_attention(
+            sub_layer_output, x, x, attention_mask
+        )
+        sub_layer_output = self.dropout(sub_layer_output, training=training)
+        sub_layer_output += sub_layer_input
+        sub_layer_output = self.norm2(sub_layer_output, training=training)
 
-        # 3
-        x = self.dropout(x)
-        __x = self.positional_feed_forward(x)
-        x = self.layer_norm[2](x + __x, training=training)
+        # Feed Foward
+        sub_layer_input = sub_layer_output
+        sub_layer_output = self.positional_feed_forward(
+            sub_layer_output, training=training
+        )
+        sub_layer_output = self.dropout(sub_layer_output, training=training)
+        sub_layer_output += sub_layer_input
+        sub_layer_output = self.norm3(sub_layer_output, training=training)
 
-        return x
+        return sub_layer_output
 
 
 class SharedEmbedding(Layer):
