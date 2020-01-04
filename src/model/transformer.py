@@ -370,59 +370,32 @@ class SharedEmbedding(Layer):
 
 
 class Decoder(Model):
-    def __init__(
-        self,
-        vocab_size,
-        n_layer,
-        d_model,
-        n_head,
-        d_ff,
-        seq_len=None,
-        learned_pos_enc=False,
-    ):
+    def __init__(self, n_layer, d_model, n_head, d_ff, dropout_rate):
         super(Decoder, self).__init__()
         self.n_head = n_head
-        self.d_model = d_model
-        self.vocab_size = vocab_size
-        self.n_layer = n_layer
-
-        self.positional_embedding = PositionalEmbedding(d_model, vocab_size)
 
         self.decode_layers = [
-            DecoderLayer(vocab_size, d_model, n_head, d_ff, seq_len)
-            for _ in range(n_layer)
+            DecoderLayer(d_model, n_head, d_ff, dropout_rate) for _ in range(n_layer)
         ]
-        self.logit_layer = Dense(units=vocab_size, activation=None)
-        self.dropout = Dropout(rate=0.1)
+        self.dropout = Dropout(rate=dropout_rate)
 
-    def call(self, inputs, outputs_encoder, training, pad_mask, look_ahead_mask):
+    def call(self, x, y, training, attention_mask, self_attention_mask):
         """
 
-    Args:
-      inputs: `(batch_size, seq_len)`
-      outputs_encoder: `(batch_size, seq_len_encoder, d_model)`
+        Args:
+            x: encoder's output tensor with shape [batch_size, seq_len_inp, d_model]
+            y: target tensor with shape [batch_size, seq_len_tar, d_model]
 
-    Returns:
-      logits: `(batch_size, seq_len, d_model)`
-    """
+        Returns:
+            output tensor through decoder layers with shape [batch_size, seq_len_tar, d_model]
+        """
+        # Apply dropout to embedded input
+        y = self.dropout(y, training=training)
 
-        # Positional Embedding
-        batch_size = inputs.shape[0]
-        seq_len = inputs.shape[1]
-        x = self.positional_embedding(inputs, seq_len)
-        x = self.dropout(x)
+        for layer in self.decode_layers:
+            y = layer(x, y, training, attention_mask, self_attention_mask)
 
-        for i in range(self.n_layer):
-            decode_layer = self.decode_layers[i]
-            x = decode_layer(
-                x,
-                outputs_encoder,
-                pad_mask=pad_mask,
-                look_ahead_mask=look_ahead_mask,
-                training=training,
-            )
-        assert x.shape == (batch_size, seq_len, self.d_model)
-        return x
+        return y
 
 
 # def create_decoder_pad_mask(q, k, pad_idx: int):
