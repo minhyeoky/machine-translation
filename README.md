@@ -8,8 +8,9 @@
 ## TODO
 - [ ] run.sh 인자 파싱 파이썬에서 하기
 - [ ] 설정파일 갈아 엎기
-- [ ] GPT 구현하기
 - [ ] 텐서플로 코드 테스트에 대해 알아보기
+- [ ] GPT, XLNet
+- [ ] generation 말고 다른 task
 
 ## Visualization
 - [x] BLEU [train, test]
