@@ -182,23 +182,51 @@ class MultiHeadAttention(Layer):
 
 
 class EncoderLayer(Layer):
-    def __init__(self, d_model, n_head, d_ff):
+    def __init__(self, d_model, n_head, d_ff, dropout_rate=0.1):
         super(EncoderLayer, self).__init__()
 
         self.multi_head_attention = MultiHeadAttention(n_head, d_model)
         self.position_wise_feed_forward = PositionWiseFeedFoward(d_ff, d_model)
-        self.layer_norm_1 = LayerNorm()
-        self.layer_norm_2 = LayerNorm()
-        self.dropout = Dropout(rate=0.1)
+        self.layer_norm1 = LayerNorm()
+        self.layer_norm2 = LayerNorm()
+
+        # For example, setting rate=0.1 would drop 10% of input elements.
+        self.dropout = Dropout(rate=dropout_rate)
 
     def call(self, x, mask, training):
-        x = self.dropout(x)
-        __x, _ = self.multi_head_attention(x, x, x, mask)
-        x = self.layer_norm_1(x + __x, training=training)
-        x = self.dropout(x)
-        __x = self.position_wise_feed_forward(x)
-        x = self.layer_norm_2(x + __x, training=training)
-        return x
+        """
+
+        Args:
+             x: input tensor with shape [batch_size, seq_len, d_model]
+
+        Returns:
+            sub_layer_output: output tensor with same shape of input tensor
+
+        """
+
+        sub_layer_input = x
+        # TODO Process attention weights
+        sub_layer_output, _ = self.multi_head_attention(
+            sub_layer_input, sub_layer_input, sub_layer_input, mask
+        )
+        # Apply dropout to the output of each sub-layer,
+        # before adding sub-layer's input and normalizing
+        sub_layer_output = self.dropout(sub_layer_output, trainig=training)
+        sub_layer_output = sub_layer_input + sub_layer_output
+        sub_layer_output = self.layer_norm1(sub_layer_output, training=training)
+
+        # Apply FeedFowardNetwork
+        sub_layer_input = sub_layer_output
+        sub_layer_output = self.position_wise_feed_forward(
+            sub_layer_input, training=training, padding=mask
+        )
+        # Apply dropout to the output of each sub-layer,
+        # before adding sub-layer's input and normalizing
+        sub_layer_output = self.dropout(sub_layer_output, trainig=training)
+        sub_layer_output = sub_layer_input + sub_layer_output
+        sub_layer_output = self.layer_norm2(sub_layer_output, training=training)
+
+        return sub_layer_output
 
 
 class Encoder(Model):
